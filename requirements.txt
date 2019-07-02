@@ -1,0 +1,6 @@
+dash
+gunicorn  # for the deployment on Heroku
+python-dotenv
+pandas
+numpy
+flask-sqlalchemy
