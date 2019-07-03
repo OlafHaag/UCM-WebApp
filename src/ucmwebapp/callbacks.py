@@ -8,8 +8,8 @@ import dash_table
 
 import pandas as pd
 
-from ucmwebapp import app
-from ucmwebapp.orm import User, Session, Device, CircleTask
+from src.ucmwebapp import app
+from src.ucmwebapp.orm import User, Session, Device, CircleTask
 
 
 def parse_upload_contents(contents, filename, date):

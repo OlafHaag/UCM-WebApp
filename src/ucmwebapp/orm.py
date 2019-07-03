@@ -1,5 +1,5 @@
 from datetime import datetime
-from ucmwebapp import db
+from src.ucmwebapp import db
 
 
 # ToDo: relationships, backrefs

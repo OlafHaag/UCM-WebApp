@@ -1,7 +1,7 @@
 import dash_core_components as dcc
 import dash_html_components as html
 
-from ucmwebapp import app_name
+from src.ucmwebapp import app_name
 
 theme = {"font-family": "Lobster", "background-color": "#e0e0e0"}
 
