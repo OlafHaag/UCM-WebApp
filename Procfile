@@ -1,1 +1,1 @@
-web: gunicorn ucmanalysisdashapp.run:server
+web: gunicorn src.run:server
