@@ -50,7 +50,7 @@ app = dash.Dash(name=app_name,
                 server=server,
                 url_base_pathname='/dashboard/',
                 external_stylesheets=external_stylesheets)
-server.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///ucm.db'
+server.config['SQLALCHEMY_DATABASE_URI'] = os.environ['DATABASE_URL']  # On heroku the uri may change frequently.
 
 db.init_app(server)
 migrate = Migrate(server, db)
