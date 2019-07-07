@@ -1,5 +1,8 @@
 from datetime import datetime
-from src.ucmwebapp import db
+
+from flask_sqlalchemy import SQLAlchemy
+
+db = SQLAlchemy()
 
 
 class Device(db.Model):

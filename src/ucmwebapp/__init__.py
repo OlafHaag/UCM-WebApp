@@ -3,11 +3,12 @@ from pathlib import Path
 
 import dash
 from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
 
 from dotenv import load_dotenv
 
 from src.ucmwebapp.exceptions import ImproperlyConfigured
+from src.ucmwebapp.models import db
 
 DOTENV_PATH = Path(__file__).parents[1] / '.env'
 load_dotenv(DOTENV_PATH)
@@ -50,7 +51,9 @@ app = dash.Dash(name=app_name,
                 url_base_pathname='/dashboard/',
                 external_stylesheets=external_stylesheets)
 server.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///ucm.db'
-db = SQLAlchemy(server)
+
+db.init_app(server)
+migrate = Migrate(server, db)
 
 # 2. Add layout property.
 from src.ucmwebapp.layout import serve_layout

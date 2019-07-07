@@ -4,3 +4,5 @@ python-dotenv==0.10.3
 pandas==0.24.2
 numpy==1.16.4
 Flask-SQLAlchemy==2.4.0
+psycopg2==2.8.3
+Flask-Migrate==2.5.2
