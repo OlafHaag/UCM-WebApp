@@ -30,11 +30,11 @@ else:
 #except KeyError:
 #    raise ImproperlyConfigured("Plotly credentials not set in .env")
 
-app_name = "UCMAnalysisDashApp"
+app_name = 'UCMAnalysisDashApp'
 server = Flask(app_name)
 
 try:
-    server.secret_key = os.environ["SECRET_KEY"]
+    server.secret_key = os.environ['SECRET_KEY']
 except KeyError:
     raise ImproperlyConfigured("SECRET KEY not set in .env:")
 
@@ -42,9 +42,9 @@ external_js = []
 
 external_stylesheets = [
     # dash stylesheet
-    "https://codepen.io/chriddyp/pen/bWLwgP.css",
-    "https://fonts.googleapis.com/css?family=Lobster|Raleway",
-    "//maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css",
+    'https://codepen.io/chriddyp/pen/bWLwgP.css',
+    'https://fonts.googleapis.com/css?family=Lobster|Raleway',
+    '//maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css',
 ]
 app = dash.Dash(name=app_name,
                 server=server,
@@ -52,17 +52,18 @@ app = dash.Dash(name=app_name,
                 external_stylesheets=external_stylesheets)
 server.config['SQLALCHEMY_DATABASE_URI'] = os.environ['DATABASE_URL']  # On heroku the uri may change frequently.
 
+# 2. Connect the SQLAlchemy object to the application.
 db.init_app(server)
 migrate = Migrate(server, db)
 
-# 2. Add layout property.
-from src.ucmwebapp.layout import serve_layout
+# 3. Add layout property.
+from src.ucmwebapp.layout import serve_layout  # Imported here, because app_name has to be defined.
 app.layout = serve_layout
 
-# 3. add callbacks
+# 4. add callbacks
 from src.ucmwebapp import callbacks
 
 for js in external_js:
-    app.scripts.append_script({"external_url": js})
+    app.scripts.append_script({'external_url': js})
 for css in external_stylesheets:
-    app.css.append_css({"external_url": css})
+    app.css.append_css({'external_url': css})
