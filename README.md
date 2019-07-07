@@ -3,3 +3,6 @@
 
 
 Analyze and visualize data produced by the UCMResearchApp.
+
+
+ Heroku free PostgreSQL Add-on has a row limit of 10,000. 
