@@ -50,7 +50,10 @@ app = dash.Dash(name=app_name,
                 server=server,
                 url_base_pathname='/dashboard/',
                 external_stylesheets=external_stylesheets)
-server.config['SQLALCHEMY_DATABASE_URI'] = os.environ['DATABASE_URL']  # On heroku the uri may change frequently.
+try:
+    server.config['SQLALCHEMY_DATABASE_URI'] = os.environ['DATABASE_URL']  # On heroku the uri may change frequently.
+except KeyError:
+    raise ImproperlyConfigured("DATABASE_URL credentials not set in .env")
 
 # 2. Connect the SQLAlchemy object to the application.
 db.init_app(server)
