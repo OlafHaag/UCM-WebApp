@@ -55,6 +55,8 @@ try:
 except KeyError:
     raise ImproperlyConfigured("DATABASE_URL credentials not set in .env")
 
+server.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False  # Silence the deprecation warning.
+
 # 2. Connect the SQLAlchemy object to the application.
 db.init_app(server)
 migrate = Migrate(server, db)
