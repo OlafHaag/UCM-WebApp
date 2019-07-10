@@ -17,3 +17,7 @@ tests/.cache/
 *.log
 *.db
 *.pyc
+
+.DS_Store
+.webassets-cache
+.ropeproject

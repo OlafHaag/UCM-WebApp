@@ -8,9 +8,6 @@ import dash_table
 
 import pandas as pd
 
-from src.ucmwebapp import app
-from src.ucmwebapp.models import Device, User, CTSession, CircleTask
-
 
 def parse_upload_contents(contents, filename, date):
     content_type, content_string = contents.split(',')
@@ -53,12 +50,13 @@ def parse_upload_contents(contents, filename, date):
 #############
 # Callbacks #
 #############
-@app.callback(Output('output-data-upload', 'children'),
-              [Input('upload-data', 'contents')],
-              [State('upload-data', 'filename'),
-               State('upload-data', 'last_modified')])
-def update_output(list_of_contents, list_of_names, list_of_dates):
-    if list_of_contents is not None:
-        children = [
-            parse_upload_contents(c, n, d) for c, n, d in zip(list_of_contents, list_of_names, list_of_dates)]
-        return children
+def register_callbacks(dashapp):
+    @dashapp.callback(Output('output-data-upload', 'children'),
+                      [Input('upload-data', 'contents')],
+                      [State('upload-data', 'filename'),
+                       State('upload-data', 'last_modified')])
+    def update_output(list_of_contents, list_of_names, list_of_dates):
+        if list_of_contents is not None:
+            children = [
+                parse_upload_contents(c, n, d) for c, n, d in zip(list_of_contents, list_of_names, list_of_dates)]
+            return children

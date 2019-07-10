@@ -1,11 +1,11 @@
 from datetime import datetime
 
-from flask_sqlalchemy import SQLAlchemy
-
-db = SQLAlchemy()
+from app.extensions import db
 
 
 class Device(db.Model):
+    __tablename__ = 'devices'
+    
     device_id = db.Column(db.String(8), primary_key=True)
     screen_x = db.Column(db.Integer, unique=False, nullable=True)
     screen_y = db.Column(db.Integer, unique=False, nullable=True)
@@ -23,8 +23,10 @@ class Device(db.Model):
 
 
 class User(db.Model):
+    __tablename__ = 'users'
+    
     id = db.Column(db.Integer, primary_key=True)
-    device_id = db.Column(db.String(8), db.ForeignKey('device.id'))
+    device_id = db.Column(db.String(8), db.ForeignKey('devices.id'))
     ct_sessions = db.relationship('CTSession', backref='user')
     trials_CT = db.relationship('CircleTask', backref='user')  # Shortcut to trials. ToDo: Really necessary?
     
@@ -33,8 +35,10 @@ class User(db.Model):
 
 
 class CTSession(db.Model):
+    __tablename__ = 'ct_sessions'
+    
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.String(8), db.ForeignKey('user.id'))
+    user_id = db.Column(db.String(8), db.ForeignKey('users.id'))
     session = db.Column(db.Integer, unique=False, nullable=False, default=1)  # For chronological ordering.
     block = db.Column(db.Integer, unique=False, nullable=True, default=1)
     treatment = db.Column(db.String(120), unique=False, nullable=True)
@@ -51,10 +55,12 @@ class CTSession(db.Model):
 
 class CircleTask(db.Model):
     """ Variables specific to circle task. """
+    __tablename__ = 'circle_tasks'
+    
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.String(8), db.ForeignKey('user.id'))  # ToDo: user shortcut necessary?
-    session = db.Column(db.Integer, db.ForeignKey('ctsession.session'))
-    block = db.Column(db.Integer, db.ForeignKey('ctsession.block'))
+    user_id = db.Column(db.String(8), db.ForeignKey('users.id'))  # ToDo: user shortcut necessary?
+    session = db.Column(db.Integer, db.ForeignKey('ct_sessions.session'))
+    block = db.Column(db.Integer, db.ForeignKey('ct_sessions.block'))
     
     trial = db.Column(db.Integer, unique=False, nullable=False)
     df1 = db.Column(db.Float, unique=False, nullable=True)
