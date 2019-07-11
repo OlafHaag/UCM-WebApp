@@ -36,4 +36,4 @@ def home():
     return render_template('index.html',
                            title='Uncontrolled Manifold Analysis.',
                            template='home-template',
-                           body="This is an example homepage served with Flask.")
+                           body="This website serves as a visualization tool for the analysis of my UCM research.")
