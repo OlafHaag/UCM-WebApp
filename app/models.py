@@ -1,3 +1,10 @@
+"""
+Models for database tables, columns and relationships.
+
+When using ForeignKey:
+    The target column must have a unique constraint in order to build a relationship between two tables.
+"""
+
 from datetime import datetime
 
 from app.extensions import db
@@ -58,15 +65,18 @@ class CircleTask(db.Model):
     __tablename__ = 'circle_tasks'
     
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.String(8), db.ForeignKey('users.id'))  # ToDo: user shortcut necessary?
-    session = db.Column(db.Integer, db.ForeignKey('ct_sessions.session'))
-    block = db.Column(db.Integer, db.ForeignKey('ct_sessions.block'))
-    
+    user_id = db.Column(db.String(8), db.ForeignKey('users.id'))  # ToDo: user_id rly necessary? -> self.session.user_id
+    session = db.Column(db.Integer, db.ForeignKey('ct_sessions.id'))
+    # Since block is a non-unique property in CTSession we cannot place its value here, but have to go through session.
     trial = db.Column(db.Integer, unique=False, nullable=False)
     df1 = db.Column(db.Float, unique=False, nullable=True)
     df2 = db.Column(db.Float, unique=False, nullable=True)
     sum = db.Column(db.Float, unique=False, nullable=True)
 
+    def __init__(self, **kwargs):
+        super(CircleTask, self).__init__(**kwargs)
+        self.sum = kwargs['df1'] + kwargs['df2']
+        
     def __repr__(self):
         return f"CircleTask('{self.user_id}', '{self.session}', '{self.block}', '{self.trial}', " \
             f"'{self.df1}', '{self.df2}','{self.sum}')"
