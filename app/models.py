@@ -13,7 +13,7 @@ from app.extensions import db
 class Device(db.Model):
     __tablename__ = 'devices'
     
-    device_id = db.Column(db.String(8), primary_key=True)
+    id = db.Column(db.String(8), primary_key=True)
     screen_x = db.Column(db.Integer, unique=False, nullable=True)
     screen_y = db.Column(db.Integer, unique=False, nullable=True)
     dpi = db.Column(db.Float, unique=False, nullable=True)
@@ -45,7 +45,7 @@ class CTSession(db.Model):
     __tablename__ = 'ct_sessions'
     
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.String(8), db.ForeignKey('users.id'))
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     session = db.Column(db.Integer, unique=False, nullable=False, default=1)  # For chronological ordering.
     block = db.Column(db.Integer, unique=False, nullable=True, default=1)
     treatment = db.Column(db.String(120), unique=False, nullable=True)
@@ -65,7 +65,7 @@ class CircleTask(db.Model):
     __tablename__ = 'circle_tasks'
     
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.String(8), db.ForeignKey('users.id'))  # ToDo: user_id rly necessary? -> self.session.user_id
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # ToDo: user_id rly necessary? -> self.session.user_id
     session = db.Column(db.Integer, db.ForeignKey('ct_sessions.id'))
     # Since block is a non-unique property in CTSession we cannot place its value here, but have to go through session.
     trial = db.Column(db.Integer, unique=False, nullable=False)
