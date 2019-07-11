@@ -20,24 +20,18 @@ class BaseConfig:
     except KeyError:
         raise ImproperlyConfigured("SECRET_KEY not set in .env:")
     
-    try:
-        FLASK_APP = os.environ.get('FLASK_APP')
-    except KeyError:
-        raise ImproperlyConfigured("FLASK_APP not set in .env:")
+    FLASK_APP = os.environ.get('FLASK_APP')
     
-    try:
-        FLASK_ENV = os.environ.get('FLASK_ENV')
-    except KeyError:
-        raise ImproperlyConfigured("FLAK_ENV not set in .env:")
+    FLASK_ENV = os.environ.get('FLASK_ENV')
 
     # Database
     try:
-        SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL')
+        SQLALCHEMY_DATABASE_URI = os.environ['DATABASE_URL']
     except KeyError:
         raise ImproperlyConfigured("DATABASE_URL not set in .env:")
 
     # Silence deprecation warning.
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_TRACK_MODIFICATIONS = os.environ.get("SQLALCHEMY_TRACK_MODIFICATIONS")
     
     # Assets
     LESS_BIN = os.environ.get('LESS_BIN')
