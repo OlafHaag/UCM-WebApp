@@ -30,6 +30,7 @@ class Device(db.Model):
 
 
 class User(db.Model):
+    """ Theoretically a user could use multiple devices, but it's ignored here. """
     __tablename__ = 'users'
     
     id = db.Column(db.Integer, primary_key=True)
