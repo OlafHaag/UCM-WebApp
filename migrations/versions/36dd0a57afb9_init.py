@@ -30,14 +30,14 @@ def upgrade():
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('users',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('device_id', sa.String(length=8), nullable=True),
+    sa.Column('id', sa.String(length=32), nullable=False),
+    sa.Column('device_id', sa.String(length=8), nullable=False),
     sa.ForeignKeyConstraint(['device_id'], ['devices.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('ct_sessions',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('user_id', sa.Integer(), nullable=True),
+    sa.Column('user_id', sa.String(length=32), nullable=False),
     sa.Column('session', sa.Integer(), nullable=False),
     sa.Column('block', sa.Integer(), nullable=True),
     sa.Column('treatment', sa.String(length=120), nullable=True),
@@ -50,8 +50,8 @@ def upgrade():
     )
     op.create_table('circle_tasks',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('user_id', sa.Integer(), nullable=True),
-    sa.Column('session', sa.Integer(), nullable=True),
+    sa.Column('user_id', sa.String(length=32), nullable=False),
+    sa.Column('session', sa.Integer(), nullable=False),
     sa.Column('trial', sa.Integer(), nullable=False),
     sa.Column('df1', sa.Float(), nullable=True),
     sa.Column('df2', sa.Float(), nullable=True),

@@ -33,8 +33,8 @@ class User(db.Model):
     """ Theoretically a user could use multiple devices, but it's ignored here. """
     __tablename__ = 'users'
     
-    id = db.Column(db.Integer, primary_key=True)
-    device_id = db.Column(db.String(8), db.ForeignKey('devices.id'))
+    id = db.Column(db.String(32), primary_key=True)
+    device_id = db.Column(db.String(8), db.ForeignKey('devices.id'), nullable=False)
     ct_sessions = db.relationship('CTSession', backref='user')
     trials_CT = db.relationship('CircleTask', backref='user')  # Shortcut to trials. ToDo: Really necessary?
     
@@ -46,7 +46,7 @@ class CTSession(db.Model):
     __tablename__ = 'ct_sessions'
     
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    user_id = db.Column(db.String(32), db.ForeignKey('users.id'), nullable=False)
     session = db.Column(db.Integer, unique=False, nullable=False, default=1)  # For chronological ordering.
     block = db.Column(db.Integer, unique=False, nullable=True, default=1)
     treatment = db.Column(db.String(120), unique=False, nullable=True)
@@ -66,8 +66,8 @@ class CircleTask(db.Model):
     __tablename__ = 'circle_tasks'
     
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # ToDo: user_id rly necessary? -> self.session.user_id
-    session = db.Column(db.Integer, db.ForeignKey('ct_sessions.id'))
+    user_id = db.Column(db.String(32), db.ForeignKey('users.id'), nullable=False)  # ToDo: user_id rly necessary? -> self.session.user_id
+    session = db.Column(db.Integer, db.ForeignKey('ct_sessions.id'), nullable=False)
     # Since block is a non-unique property in CTSession we cannot place its value here, but have to go through session.
     trial = db.Column(db.Integer, unique=False, nullable=False)
     df1 = db.Column(db.Float, unique=False, nullable=True)
