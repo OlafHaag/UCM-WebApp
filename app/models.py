@@ -17,6 +17,7 @@ class Device(db.Model):
     screen_x = db.Column(db.Integer, unique=False, nullable=True)
     screen_y = db.Column(db.Integer, unique=False, nullable=True)
     dpi = db.Column(db.Float, unique=False, nullable=True)
+    density = db.Column(db.Float, unique=False, nullable=True)
     aspect_ratio = db.Column(db.Float, unique=False, nullable=True)
     size_x = db.Column(db.Float, unique=False, nullable=True)
     size_y = db.Column(db.Float, unique=False, nullable=True)
@@ -25,8 +26,8 @@ class Device(db.Model):
     users = db.relationship('User', backref='device')
     
     def __repr__(self):
-        return f"Device('{self.device_id}', '{self.screen_x}x{self.screen_y}', '{self.dpi}', '{self.aspect_ratio}', " \
-            f"'{self.size_x}x{self.size_y}', '{self.platform}')"
+        return f"Device('{self.id}', '{self.screen_x}', '{self.screen_y}', '{self.dpi}', '{self.density}', " \
+               f"'{self.aspect_ratio}', '{self.size_x}', '{self.size_y}', '{self.platform}')"
 
 
 class User(db.Model):
@@ -57,7 +58,7 @@ class CTSession(db.Model):
     trials_CT = db.relationship('CircleTask', backref='session_obj')
 
     def __repr__(self):
-        return f"Session('{self.user_id}', '{self.session}', '{self.block}', '{self.treatment}', '{self.time}', " \
+        return f"CTSession('{self.user_id}', '{self.session}', '{self.block}', '{self.treatment}', '{self.time}', " \
             f"'{self.time_iso}', '{self.hash}')"
 
 
@@ -79,5 +80,5 @@ class CircleTask(db.Model):
         self.sum = kwargs['df1'] + kwargs['df2']
         
     def __repr__(self):
-        return f"CircleTask('{self.user_id}', '{self.session}', '{self.block}', '{self.trial}', " \
+        return f"CircleTask('{self.user_id}', '{self.session}', '{self.trial}', " \
             f"'{self.df1}', '{self.df2}','{self.sum}')"
