@@ -26,8 +26,9 @@ class Device(db.Model):
     users = db.relationship('User', backref='device')
     
     def __repr__(self):
-        return f"Device('{self.id}', '{self.screen_x}', '{self.screen_y}', '{self.dpi}', '{self.density}', " \
-               f"'{self.aspect_ratio}', '{self.size_x}', '{self.size_y}', '{self.platform}')"
+        return f"Device(id='{self.id}', screen_x={self.screen_x}, screen_y={self.screen_y}, dpi={self.dpi}, " \
+            f"density={self.density}, aspect_ratio={self.aspect_ratio}, size_x={self.size_x}, size_y={self.size_y}, " \
+            f"platform='{self.platform}')"
 
 
 class User(db.Model):
@@ -40,7 +41,7 @@ class User(db.Model):
     trials_CT = db.relationship('CircleTask', backref='user')  # Shortcut to trials. ToDo: Really necessary?
     
     def __repr__(self):
-        return f"User('{self.id}', '{self.device_id}')"
+        return f"User(id='{self.id}', device_id='{self.device_id}')"
 
 
 class CTSession(db.Model):
@@ -58,8 +59,8 @@ class CTSession(db.Model):
     trials_CT = db.relationship('CircleTask', backref='session_obj')
 
     def __repr__(self):
-        return f"CTSession('{self.user_id}', '{self.session}', '{self.block}', '{self.treatment}', '{self.time}', " \
-            f"'{self.time_iso}', '{self.hash}')"
+        return f"CTSession(user_id='{self.user_id}', session={self.session}, block={self.block}, " \
+            f"treatment='{self.treatment}', time={self.time}, time_iso='{self.time_iso}', hash='{self.hash}')"
 
 
 class CircleTask(db.Model):
@@ -80,5 +81,5 @@ class CircleTask(db.Model):
         self.sum = kwargs['df1'] + kwargs['df2']
         
     def __repr__(self):
-        return f"CircleTask('{self.user_id}', '{self.session}', '{self.trial}', " \
-            f"'{self.df1}', '{self.df2}','{self.sum}')"
+        return f"CircleTask(user_id='{self.user_id}', session={self.session}, trial={self.trial}, " \
+            f"df1={self.df1}, df2={self.df2})"
