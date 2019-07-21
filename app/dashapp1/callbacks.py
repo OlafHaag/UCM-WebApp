@@ -76,6 +76,14 @@ def get_one_or_create(model,
     To clarify: The device should be unique, as shall the user.
     Session should also be unique by their hash value, and probably time, too.
     For trials this function must not be used. We always add new trials if the session/block is not pre-existing.
+    
+    :param model: model class.
+    :type model: SQLAlchemy.Model
+    :param create_method: Function to use to create instance of model.
+    :type create_method: function
+    :param create_method_kwargs:
+    :type create_method_kwargs: dict
+    :return: namedtuple with Instance of model and if it was created or not.
     """
     result = namedtuple("Model", ["instance", "created"])
     try:
@@ -113,7 +121,13 @@ def get_models(df, table_type):
 
 @ignoreKeyError
 def get_device(data):
-    """ Gets either device from database or returns new one. """
+    """ Gets either device from database or returns new one.
+    
+    :param data: Data for instance.
+    :type data: pandas.Series
+    :return: Device instance.
+    :rtype: Device
+    """
     device = Device.query.get(data.id)
     if not device:
         device = new_device(data)
@@ -122,6 +136,13 @@ def get_device(data):
     
 @ignoreKeyError
 def new_device(data):
+    """ Create a new instance of Device.
+
+    :param data: Data for instance.
+    :type data: pandas.Series
+    :return: Device instance.
+    :rtype: Device
+    """
     device = Device(id=data.device,
                     screen_x=data.screen_x,
                     screen_y=data.screen_y,
@@ -136,6 +157,13 @@ def new_device(data):
 
 @ignoreKeyError
 def new_user(data):
+    """ Create a new instance of User.
+
+    :param data: Data for instance.
+    :type data: pandas.Series
+    :return: User instance.
+    :rtype: User
+    """
     user = User(id=data.id,
                 device_id=data.device)
     return user
@@ -143,7 +171,13 @@ def new_user(data):
 
 @ignoreKeyError
 def new_ct_session(data):
-    """ Get model for a Circle Task block. """
+    """ Create a new instance of CTSession (block).
+    
+    :param data: Data for instance.
+    :type data: pandas.Series
+    :return: CTSession instance.
+    :rtype: CTSession
+    """
     session = CTSession(block=data.block,
                         treatment=data.treatment,
                         time=data.time,
@@ -154,6 +188,13 @@ def new_ct_session(data):
 
 @ignoreKeyError
 def new_circletask_trial(data):
+    """ Create a new instance of CircleTask.
+    
+    :param data: Data for instance.
+    :type data: pandas.Series
+    :return: CircleTask instance.
+    :rtype: CircleTask
+    """
     trial = CircleTask(trial=data.Index,
                        df1=data.df1,
                        df2=data.df2)
@@ -163,13 +204,28 @@ def new_circletask_trial(data):
 ##############
 # Without DB #
 ##############
-def get_trialfiles_indices(filenames):
-    indices = [i for i, f in enumerate(filenames) if get_table_type(f) == 'trials']
+def get_file_indices(filenames, table_type):
+    """ Get indices of given table type from a list of file names.
+    
+    :param filenames: Received file names.
+    :type filenames: list
+    :param table_type: Which tables to look for.
+    :type table_type: str
+    :return: Indices of found files.
+    :rtype: list
+    """
+    indices = [i for i, f in enumerate(filenames) if get_table_type(f) == table_type]
     return indices
 
 
 def content_to_df(content):
-    """ Decode uploaded file content and return Dataframe. """
+    """ Decode uploaded file content and return Dataframe.
+    
+    :param content: base64 encoded content of a file.
+    :type content: bytes
+    :return: Converted Dataframe
+    :rtype: pandas.DataFrame
+    """
     decoded = base64.b64decode(content)
     try:
         df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
@@ -180,13 +236,31 @@ def content_to_df(content):
 
 
 def check_circletask_integrity(df, sent_hash, default=0.1):
-    """ Evaluate if this data was tampered with and the controls actually touched. """
+    """ Evaluate if this data was tampered with and the controls actually touched.
+    
+    :param df: Dataframe to check.
+    :type df: pandas.DataFrame
+    :param sent_hash: The received hash to compare df to.
+    :type sent_hash: str
+    :param default: The default value for the slider. If it's still the same, the task wasn't done properly.
+    :type default: float
+    :return: Status of integrity.
+    :rtype: bool
+    """
     check = check_circletask_touched(df, default) and check_circletask_hash(df, sent_hash)
     return check
 
 
 def check_circletask_hash(df, sent_hash):
-    """ Check if hashes match. """
+    """ Check if hashes match.
+    
+    :param df: Dataframe to check.
+    :type df: pandas.DataFrame
+    :param sent_hash: The received hash to compare df to.
+    :type sent_hash: str
+    :return: Do hashes match?
+    :rtype: bool
+    """
     df_hash = md5(df.round(5).values.copy(order='C')).hexdigest()
     if df_hash == sent_hash:
         return True
@@ -195,7 +269,15 @@ def check_circletask_hash(df, sent_hash):
 
 
 def check_circletask_touched(df, default=0.1):
-    """ Check if trials are all still on at default. """
+    """ Check if trials are all still on at default.
+    
+    :param df: Dataframe to check.
+    :type df: pandas.DataFrame
+    :param default: The default value for the slider. If it's still the same, the task wasn't done properly.
+    :type default: float
+    :return: If the sliders where used at all.
+    :rtype: bool
+    """
     touched = not (df == default).all()
     return touched
     
@@ -207,8 +289,10 @@ def parse_upload_contents(contents, filename, date):
     # ToDo:
     #       if integrity not given, return error (data corrupted).
     #       Get/create device and user entries already exist in db.
+    #       device.users.append(user_instance)
     #       Check if session is already present, if yes: abort & return error (duplicate).
-    #       if not session.add_all(trials)
+    #       ctsession_inst.trials_CT.extend(trials)
+    #       if not session.add_all(devices+users+sessions+trials)
     #       Get df from updated db.
     #       Show plot.
     error_div = html.Div(['There was an error processing this file.'])
@@ -253,6 +337,7 @@ def register_callbacks(dashapp):
                       [State('upload-data', 'filename'),
                        State('upload-data', 'last_modified')])
     def update_output(list_of_contents, list_of_names, list_of_dates):
+        """ Handles files that are sent to the dash update component."""
         if list_of_contents is not None:
             # ToDo: return plots.
             children = [
