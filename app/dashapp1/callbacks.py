@@ -54,8 +54,8 @@ def get_table_type(filename):
     
 
 def get_one_or_create(model,
-                      create_method='',
-                      create_method_kwargs=None,
+                      create_func=None,
+                      defaults=None,
                       **kwargs):
     """ Get a row from the database or create one if not already present.
     Based on stackoverflow answer: https://stackoverflow.com/a/37419325
@@ -69,125 +69,74 @@ def get_one_or_create(model,
     
     :param model: model class.
     :type model: SQLAlchemy.Model
-    :param create_method: Function to use to create instance of model.
-    :type create_method: function
-    :param create_method_kwargs:
-    :type create_method_kwargs: dict
+    :param create_func: function to use to create new instance of model. If None, model constructor is used.
+    :type create_func: function
+    :param defaults: If no result was found, update kwargs with these defaults.
+    :type defaults: dict
     :return: namedtuple with Instance of model and if it was created or not.
+    :rtype: tuple
     """
     result = namedtuple("Model", ["instance", "created"])
     try:
         return result(model.query.filter_by(**kwargs).one(), False)
     except NoResultFound:
-        kwargs.update(create_method_kwargs or {})
+        kwargs.update(defaults or {})
         try:
             with db.session.begin_nested():
-                created = getattr(model, create_method, model)(**kwargs)
-                db.session.add(created)
+                if create_func:
+                    created = create_func(**kwargs)
+                else:
+                    created = model(**kwargs)
+                if created:
+                    db.session.add(created)
             return result(created, True)
         except IntegrityError:
             return result(model.query.filter_by(**kwargs).one(), False)
         
-        
-def get_models(df, table_type):
-    # ToDo: rework this, does it make sense to return "models"?
-    models = list()
 
-    if table_type == 'device':
-        row0 = df.loc[0]  # We expect it to contain only 1 device.
-        models.append(new_device(row0))
-    elif table_type == 'user':
-        row0 = df.loc[0]  # We expect it to contain only 1 user.
-        models.append(new_user(row0))
-    elif table_type == 'session':
-        if df.task == 'CircleTask':
-            for row in df.itertuples(index=False):
-                models.append(new_ct_session(row))
-    elif table_type == 'trials':
-        for row in df.itertuples(index=True):
-            models.append(new_circletask_trial(row))
-    return models
-
-
-@ignoreKeyError
-def get_device(data):
-    """ Gets either device from database or returns new one.
-    
-    :param data: Data for instance.
-    :type data: pandas.Series
-    :return: Device instance.
-    :rtype: Device
-    """
-    device = Device.query.get(data.id)
-    if not device:
-        device = new_device(data)
-    return device
-    
-    
-@ignoreKeyError
-def new_device(data):
+@none_on_error
+def new_device(**kwargs):
     """ Create a new instance of Device.
 
-    :param data: Data for instance.
-    :type data: pandas.Series
     :return: Device instance.
     :rtype: Device
     """
-    device = Device(id=data.device,
-                    screen_x=data.screen_x,
-                    screen_y=data.screen_y,
-                    dpi=data.dpi,
-                    density=data.density,
-                    aspect_ratio=data.aspect_ratio,
-                    size_x=data.size_x,
-                    size_y=data.size_y,
-                    platform=data.platform)
+    device = Device(**kwargs)
     return device
 
 
-@ignoreKeyError
-def new_user(data):
+@none_on_error
+def new_user(**kwargs):
     """ Create a new instance of User.
 
-    :param data: Data for instance.
-    :type data: pandas.Series
     :return: User instance.
     :rtype: User
     """
-    user = User(id=data.id,
-                device_id=data.device)
+    user = User(**kwargs)
     return user
 
 
-@ignoreKeyError
-def new_ct_session(data):
+@none_on_error
+def new_ct_session(**kwargs):
     """ Create a new instance of CTSession (block).
     
-    :param data: Data for instance.
-    :type data: pandas.Series
     :return: CTSession instance.
     :rtype: CTSession
     """
-    session = CTSession(block=data.block,
-                        treatment=data.treatment,
-                        time=data.time,
-                        time_iso=data.time_iso,
-                        hash=data.hash)
+    session = CTSession(**kwargs)
     return session
 
 
-@ignoreKeyError
-def new_circletask_trial(data):
+@none_on_error
+def new_circletask_trial(**kwargs):
     """ Create a new instance of CircleTask.
     
-    :param data: Data for instance.
-    :type data: pandas.Series
     :return: CircleTask instance.
     :rtype: CircleTask
     """
-    trial = CircleTask(trial=data.Index,
-                       df1=data.df1,
-                       df2=data.df2)
+    trial = CircleTask(trial=kwargs['Index'],
+                       df1=kwargs['df1'],
+                       df2=kwargs['df2'])
     return trial
 
 
@@ -285,7 +234,7 @@ def parse_upload_contents(contents, filename, date):
     #       if not session.add_all(devices+users+sessions+trials)
     #       Get df from updated db.
     #       Show plot.
-    error_div = html.Div(['There was an error processing this file.'])
+    error_div = html.Div(["ERROR: There was an error during file processing."])
     table_type = get_table_type(filename)
     if table_type:
         try:
@@ -318,6 +267,79 @@ def parse_upload_contents(contents, filename, date):
     ])
 
 
+def get_idx_or_error(filenames, table_type):
+    """ Supposed to be used against table types 'device', 'user' and 'session' which should yield a single file.
+    
+    :param filenames:
+    :type filenames: list
+    :param table_type:
+    :type table_type: str
+    :return:
+    :rtype: int| html.Div
+    """
+    try:
+        file_idx = get_file_indices(filenames, table_type)[0]
+    except IndexError:
+        return html.Div([f"ERROR: {table_type.title()} file missing."])
+    return file_idx
+
+
+def decode_contents(list_of_contents):
+    """ Decode list of base64 encoded uploaded data and convert it to decoded list of data.
+    
+    :param list_of_contents: List of encoded content from dash upload component.
+    :type list_of_contents: list
+    :return: List of decoded contents (str)
+    :rtype: list
+    """
+    decoded = list()
+    for contents in list_of_contents:
+        content_type, content_string = contents.split(',')
+        decoded.append(base64.b64decode(content_string).decode('utf-8'))
+    return decoded
+
+    
+def parse_uploaded_files(list_of_contents, list_of_filenames):
+    
+    # If files are missing return error message.
+    device_file_idx = get_idx_or_error(list_of_filenames, 'device')
+    if not isinstance(device_file_idx, int):
+        return [device_file_idx]
+    user_file_idx = get_idx_or_error(list_of_filenames, 'user')
+    if not isinstance(user_file_idx, int):
+        return [user_file_idx]
+    session_file_idx = get_idx_or_error(list_of_filenames, 'session')
+    if not isinstance(session_file_idx, int):
+        return [session_file_idx]
+    trials_file_idxs = get_file_indices(list_of_filenames, 'trials')
+    if not trials_file_idxs:
+        return [html.Div(["ERROR: Trial files missing."])]
+    
+    # Generic error message.
+    error_div = html.Div(["ERROR: There was an error during file processing."])
+    
+    try:  # I know this is a big block, but I didn't want to wrap each statement in a try statement.
+        # Decode the content.
+        decoded_list = decode_contents(list_of_contents)
+        
+        # Extract data from content for the database models.
+        # For device and user we expect them to contain only 1 entry.
+        device_data = pd.read_csv(io.StringIO(decoded_list[device_file_idx])).iloc[0]
+        user_data = pd.read_csv(io.StringIO(decoded_list[user_file_idx])).iloc[0]
+        session_df = pd.read_csv(io.StringIO(decoded_list[session_file_idx]))
+        trials_dfs = [pd.read_csv(io.StringIO(decoded_list[idx])) for idx in trials_file_idxs]
+    except Exception as e:
+        print(e)
+        return error_div
+
+    # ToDo: Check if any of these are None.
+    device = get_one_or_create(Device, create_func=new_device, **device_data.to_dict()).instance
+    user = get_one_or_create(User, create_func=new_user, **user_data.to_dict()).instance
+    sessions = [get_one_or_create(CTSession, create_func=new_ct_session, **data._asdict()).instance
+                for data in session_df.itertuples(index=False)]  # itertuples doesn't return Series.
+    # ToDo: Check if sessions were already uploaded.
+
+
 ################
 # UI Callbacks #
 ################
@@ -329,6 +351,7 @@ def register_callbacks(dashapp):
     def update_output(list_of_contents, list_of_names, list_of_dates):
         """ Handles files that are sent to the dash update component."""
         if list_of_contents is not None:
+            
             # ToDo: return plots.
             children = [
                 parse_upload_contents(c, n, d) for c, n, d in zip(list_of_contents, list_of_names, list_of_dates)]
