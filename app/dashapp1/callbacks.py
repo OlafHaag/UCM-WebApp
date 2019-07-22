@@ -3,7 +3,7 @@ import base64
 import datetime
 from collections import namedtuple
 from hashlib import md5
-from contextlib import contextmanager, wraps
+from contextlib import suppress, wraps
 
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.exc import IntegrityError
@@ -17,28 +17,18 @@ import pandas as pd
 from app.extensions import db
 from app.models import Device, User, CTSession, CircleTask
 
+
 ####################
 # Helper functions #
 ####################
-@contextmanager
-def ignored(*exceptions):
-    """ Context in which raised exceptions are ignored.
-    Note, that all statements after the one raising the exception within the context are passed.
-    """
-    try:
-        yield
-    except exceptions:
-        pass
-
-
-def ignoreKeyError(func):
+def none_on_error(func):
     """ Decorator that on excepting a KeyError or AttributeError within the function returns None.
-    Meant for use with DataFrames.
+    Meant for use with DataFrames and Series.
     """
     @wraps(func)
     def new_func(*args):
         res = None
-        with ignored(KeyError, AttributeError):
+        with suppress(KeyError, AttributeError):
             res = func(*args)
         return res
     return new_func
