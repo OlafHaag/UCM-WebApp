@@ -115,7 +115,7 @@ def new_device(**kwargs):
     :return: Device instance.
     :rtype: Device
     """
-    device = Device(id=kwargs['id'],  # FixMe: setting primary key doesn't seem to work?
+    device = Device(id=kwargs['id'],
                     screen_x=kwargs['screen_x'],
                     screen_y=kwargs['screen_y'],
                     dpi=kwargs['dpi'],
@@ -134,8 +134,8 @@ def new_user(**kwargs):
     :return: User instance.
     :rtype: User
     """
-    user = User(id=kwargs['id'],  # FixMe: setting primary key doesn't seem to work?
-                device_id=kwargs['device'])  # FixMe: This won't work. Needs ORM object.
+    user = User(id=kwargs['id'],
+                device_id=kwargs['device_id'])
     return user
 
 
@@ -146,8 +146,13 @@ def new_ct_session(**kwargs):
     :return: CTSession instance.
     :rtype: CTSession
     """
-    session = CTSession(block=kwargs['block'],
+    # ToDo: session count
+    session = CTSession(user_id=kwargs['user_id'],
+                        block=kwargs['block'],
                         treatment=kwargs['treatment'],
+                        warm_up=kwargs['warm_up'],
+                        trial_duration=kwargs['trial_duration'],
+                        cool_down=kwargs['cool_down'],
                         time=kwargs['time'],
                         time_iso=kwargs['time_iso'],
                         hash=kwargs['hash'])
@@ -161,16 +166,15 @@ def new_circletask_trial(**kwargs):
     :return: CircleTask instance.
     :rtype: CircleTask
     """
-    trial = CircleTask(user_id=kwargs['user_id'],    # FixMe: This won't work. Needs ORM object.
-                       trial=kwargs['Index'],
+    trial = CircleTask(user_id=kwargs['user_id'],
+                       session=kwargs['session'],
+                       trial=kwargs['trial'],
                        df1=kwargs['df1'],
                        df2=kwargs['df2'])
     return trial
 
 
 def add_to_db(device_kwargs, user_kwargs, session_kwargs, trials_kwargs):
-    # FixMe: Optimize with df.to_sql(name=sql_table_name, con=db.engine, if_exists='fail', index=False, method='multi').
-    #   ValueError when the table already exists and if_exists is ‘fail’.
     # Create model instances.
     try:
         device = get_one_or_create(Device, create_func=new_device, **device_kwargs).instance
@@ -178,31 +182,42 @@ def add_to_db(device_kwargs, user_kwargs, session_kwargs, trials_kwargs):
     except ModelCreationError:
         raise
     
-    if is_new_user and device.id == user.device_id:
-        device.users.append(user)
+    # Add sessions to db.
+    task_err_msg = "ERROR: Failed to identify session as 'Circle Task'."
+    sessions = list()
+    for kw in session_kwargs:
+        # This dashboard only accepts Circle Task (for now).
+        try:
+            task = kw.pop('task')
+        except KeyError:
+            raise ModelCreationError(task_err_msg)
+        if task == 'Circle Task':
+            model = CTSession
+        else:
+            raise ModelCreationError(task_err_msg)
+        try:
+            session, created = get_one_or_create(model, create_func=new_ct_session, **kw)
+        except ModelCreationError:
+            raise
+        # Check if session was already uploaded.
+        if not created:
+            raise ModelCreationError("ERROR: Session(s) already uploaded.")
+        sessions.append(session)
     
-    # Retrieve 2 tuples for sessions. The first contains session instances,
-    # the second contains information about whether they weren't already in the db.
-    sessions, created = list(zip(*[get_one_or_create(CTSession, create_func=new_ct_session, **kw)
-                                   for kw in session_kwargs]))
-    
-    # Check if sessions were already uploaded.
-    if not all(created):
-        raise ModelCreationError("ERROR: Session was already uploaded.")
-    else:
-        # Only if sessions are new, add trials.
-        trials = list()
-        for kw in trials_kwargs:
-            try:
-                session_idx = kw.pop('session_idx')
-            except KeyError:
-                raise ModelCreationError("ERROR: Failed to relate trial to session.")
-            try:
-                trial, created = get_one_or_create(CircleTask, create_func=new_circletask_trial, **kw)
-            except ModelCreationError:
-                raise
-            # Add trial to corresponding session.
-            sessions[session_idx].trials_CT.append(trial)
+    # Add trials.
+    # FixMe: Optimize with df.to_sql(name=sql_table_name, con=db.engine, if_exists='append', index=False, method='multi')?
+    trials = list()
+    for kw in trials_kwargs:
+        try:
+            session_idx = kw.pop('session_idx')
+        except KeyError:
+            raise ModelCreationError("ERROR: Failed to relate trial to session.")
+        #FixMe: add session. session isn't nullable -> IntegrityError
+        kw['session'] = sessions[session_idx].id
+        try:
+            trial, created = get_one_or_create(CircleTask, create_func=new_circletask_trial, **kw)
+        except ModelCreationError:
+            raise
     
     db.session.commit()
             
@@ -329,13 +344,13 @@ def check_circletask_hash(df, sent_hash):
     :rtype: bool
     """
     df_hash = md5(df.round(5).values.copy(order='C')).hexdigest()
-    if df_hash == sent_hash:
-        return True
+    if df_hash != sent_hash:
+        raise UploadError("ERROR: Data corrupted.")
     else:
-        return False
+        return True
+        
 
-
-def check_circletask_touched(df, default=0.1):
+def check_circletask_touched(df, default=10.0):
     """ Check if trials are all still on at default.
 
     :param df: Dataframe to check.
@@ -345,11 +360,13 @@ def check_circletask_touched(df, default=0.1):
     :return: If the sliders where used at all.
     :rtype: bool
     """
-    touched = not (df == default).all()
-    return touched
+    touched = not (df[['df1', 'df2']].values == default).all()
+    if not touched:
+        raise UploadError("ERROR: Task not properly executed.")
+    return True
 
 
-def check_circletask_integrity(df, sent_hash, default=0.1):
+def check_circletask_integrity(df, sent_hash, default=10.0):
     """ Evaluate if this data was tampered with and the controls actually touched.
 
     :param df: Dataframe to check.
@@ -361,7 +378,10 @@ def check_circletask_integrity(df, sent_hash, default=0.1):
     :return: Status of integrity.
     :rtype: bool
     """
-    check = check_circletask_touched(df, default) and check_circletask_hash(df, sent_hash)
+    try:
+        check = check_circletask_touched(df, default) and check_circletask_hash(df, sent_hash)
+    except UploadError:
+        raise
     return check
 
 
@@ -431,7 +451,8 @@ def parse_uploaded_files(list_of_filenames, list_of_contents):
     except Exception:
         raise UploadError("ERROR: Failed to read file contents for user.")
     try:
-        session_df = pd.read_csv(io.StringIO(decoded_list[table_idx['session']]))
+        # Read data and keep empty string in treatment as empty string, not NaN.
+        session_df = pd.read_csv(io.StringIO(decoded_list[table_idx['session']]), keep_default_na=False)
         # Convert time_iso string to datetime.
         session_df['time_iso'] = session_df['time_iso'].apply(lambda t: datetime.strptime(t, time_fmt))
         session_df['user_id'] = kw['user']['id']
@@ -455,16 +476,24 @@ def parse_uploaded_files(list_of_filenames, list_of_contents):
         # Add index of session for later relationship assignment.
         mask = (session_df['time_iso'] == trials_meta.time_iso) & (session_df['block'] == trials_meta.block)
         try:
-            df['session_idx'] = session_df[mask].index[0]
+            session_idx = session_df[mask].index[0]
+            df['session_idx'] = session_idx
         except IndexError:
             raise UploadError("ERROR: Mismatch between session data and trials.")
+        # Check data integrity.
+        sent_hash = session_df['hash'].iloc[session_idx]
+        try:
+            check_passed = check_circletask_integrity(df, sent_hash)
+        except UploadError:
+            raise
         trials_dfs.append(df)
         
     # Concatenate the different trials DataFrames. Rows are augmented by block & time_iso for differentiation later on.
     df = pd.concat(trials_dfs)
     df['user_id'] = kw['user']['id']
+    df['trial'] = df.index
     # We may get a lot of trials, put them in a generator to not hold a large list of dictionaries in memory.
-    kw['trials'] = (row._asdict() for row in df.itertuples(index=True))
+    kw['trials'] = (row._asdict() for row in df.itertuples(index=False))
     
     return kw
     
@@ -540,13 +569,12 @@ def register_callbacks(dashapp):
     def update_output(list_of_contents, list_of_names, list_of_dates):
         """ Handles files that are sent to the dash update component."""
         if list_of_contents is not None:
-    
             try:
-                #process_upload(list_of_names, list_of_contents)
+                process_upload(list_of_names, list_of_contents)
                 children = [
                     parse_upload_contents(c, n, d) for c, n, d in zip(list_of_contents, list_of_names, list_of_dates)]
             except (UploadError, ModelCreationError) as e:
-                return [html.Div([str(e)])]  # Display the error message.
+                return [html.Div(str(e))]  # Display the error message.
     
             # ToDo: return plots.
     
