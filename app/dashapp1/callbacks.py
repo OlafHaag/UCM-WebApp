@@ -94,14 +94,17 @@ def get_one_or_create(model,
         try:
             with db.session.begin_nested():
                 if create_func:
-                    created = create_func(**kwargs)  # Throws ModelCreationError if kwargs not sufficient.
+                    new_instance = create_func(**kwargs)  # Throws ModelCreationError if kwargs not sufficient.
                 else:
-                    created = model(**kwargs)  # Doesn't check if there's sufficient data provided.
-                if created:
-                    db.session.add(created)
-            return result(created, True)
+                    new_instance = model(**kwargs)  # Doesn't check if there's sufficient data provided.
+                if new_instance:
+                    db.session.add(new_instance)
+            return result(new_instance, True)
         except IntegrityError:
-            return result(model.query.filter_by(**kwargs).one(), False)
+            try:
+                return result(model.query.filter_by(**kwargs).one(), False)
+            except NoResultFound:
+                raise ModelCreationError("ERROR: Integrity compromised.\nFailed to get or create model.")
     
 
 @raise_on_error
