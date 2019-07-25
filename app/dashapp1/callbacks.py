@@ -1,6 +1,6 @@
 import io
 import base64
-import datetime
+from datetime import datetime
 from collections import namedtuple
 from hashlib import md5
 from contextlib import suppress, wraps
@@ -25,8 +25,9 @@ from .exceptions import UploadError, ModelCreationError
 register_adapter(np.int64, AsIs)
 register_adapter(np.float64, AsIs)
 
+time_fmt = '%Y_%m_%d_%H_%M_%S'
 
-# ToDo: REFACTOR: use df.to_sql()!
+# ToDo: use df.to_sql() for trials?
 #       Get df from updated db.
 #       Show plot.
 ####################
@@ -375,7 +376,7 @@ def get_trials_meta(filename):
     basename, ext = filename.split('.')
     parts = basename.split('-')
     try:
-        time_iso = parts[1]
+        time_iso = datetime.strptime(parts[1], time_fmt)  # Convert string to datetime.
         block = int(parts[2].split('_')[1])
     except (IndexError, ValueError):
         raise UploadError("ERROR: Trial table file name has to be of form: trials-<time_iso>-Block_<n>.csv")
@@ -431,6 +432,8 @@ def parse_uploaded_files(list_of_filenames, list_of_contents):
         raise UploadError("ERROR: Failed to read file contents for user.")
     try:
         session_df = pd.read_csv(io.StringIO(decoded_list[table_idx['session']]))
+        # Convert time_iso string to datetime.
+        session_df['time_iso'] = session_df['time_iso'].apply(lambda t: datetime.strptime(t, time_fmt))
         session_df['user_id'] = kw['user']['id']
     except Exception:
         raise UploadError("ERROR: Failed to read file contents for session.")
@@ -508,7 +511,7 @@ def parse_upload_contents(contents, filename, date):
     
     return html.Div([
         html.H5(filename),
-        html.H6(datetime.datetime.fromtimestamp(date)),
+        html.H6(datetime.fromtimestamp(date)),
         
         dash_table.DataTable(
             data=df.to_dict('records'),
