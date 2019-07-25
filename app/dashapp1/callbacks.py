@@ -343,7 +343,7 @@ def check_circletask_hash(df, sent_hash):
     :return: Do hashes match?
     :rtype: bool
     """
-    df_hash = md5(df.round(5).values.copy(order='C')).hexdigest()
+    df_hash = md5(df[['df1', 'df2']].round(5).values.copy(order='C')).hexdigest()
     if df_hash != sent_hash:
         raise UploadError("ERROR: Data corrupted.")
     else:
