@@ -32,7 +32,7 @@ class Device(db.Model):
 
 
 class User(db.Model):
-    """ Theoretically a user could use multiple devices, but it's ignored here. """
+    """ Theoretically a user could use multiple devices (many-to-many), but it's ignored here. """
     __tablename__ = 'users'
     
     id = db.Column(db.String(32), primary_key=True)
@@ -47,11 +47,17 @@ class User(db.Model):
 class CTSession(db.Model):
     __tablename__ = 'ct_sessions'
     
+    # The combination of user_id and hash should* be unique and could be used as a composite key (and drop id).
+    # time column can't be used, as it may not be unique, even though it's unlikely.
+    # *It's highly unlikely that someone produces the exact same dataset, but not impossible.
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.String(32), db.ForeignKey('users.id'), nullable=False)
     session = db.Column(db.Integer, unique=False, nullable=False, default=1)  # For chronological ordering.
     block = db.Column(db.Integer, unique=False, nullable=True, default=1)
     treatment = db.Column(db.String(120), unique=False, nullable=True)
+    warm_up = db.Column(db.Float, unique=False, nullable=False, default=0.5)
+    trial_duration = db.Column(db.Float, unique=False, nullable=False, default=2.0)
+    cool_down = db.Column(db.Float, unique=False, nullable=False, default=0.5)
     time = db.Column(db.Float, unique=False, nullable=True)
     time_iso = db.Column(db.DateTime, unique=False, nullable=False, default=datetime.utcnow)
     hash = db.Column(db.String(32), unique=True, nullable=False)
@@ -67,8 +73,10 @@ class CircleTask(db.Model):
     """ Variables specific to circle task. """
     __tablename__ = 'circle_tasks'
     
+    # Can't use ForeignKeyConstraint as composite key,
+    # because user_id, session and block are not unique keys in reference table.
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.String(32), db.ForeignKey('users.id'), nullable=False)  # ToDo: user_id rly necessary? -> self.session.user_id
+    user_id = db.Column(db.String(32), db.ForeignKey('users.id'), nullable=False)  # ToDo: user_id rly necessary? -> self.session.user_id or get-method
     session = db.Column(db.Integer, db.ForeignKey('ct_sessions.id'), nullable=False)
     # Since block is a non-unique property in CTSession we cannot place its value here, but have to go through session.
     trial = db.Column(db.Integer, unique=False, nullable=False)
