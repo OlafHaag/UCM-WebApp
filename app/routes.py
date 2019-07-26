@@ -22,7 +22,7 @@ js_bundle = Bundle('js/*.js',
 assets.register('less_all', less_bundle)
 assets.register('js_all', js_bundle)
 
-# ToDo: Figure out what this is and solve crash: Working outside of application context.
+# ToDo: Figure out what this is needed for and solve crash: Working outside of application context.
 '''
 if app.config['FLASK_ENV'] == 'development':
     less_bundle.build(force=True)
