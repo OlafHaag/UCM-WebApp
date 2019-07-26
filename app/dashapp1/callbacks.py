@@ -1,7 +1,7 @@
 import io
 import base64
 from datetime import datetime
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 from hashlib import md5
 from contextlib import suppress, wraps
 
@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 import dash_html_components as html
 from dash.dependencies import Input, Output, State
 import dash_table
+from dash.exceptions import PreventUpdate
 
 import pandas as pd
 import numpy as np
@@ -20,6 +21,7 @@ from app.extensions import db
 from app.models import Device, User, CTSession, CircleTask
 from .exceptions import UploadError, ModelCreationError
 from .analysis import get_data
+from .layout import get_figure
 
 # Numpy data types compatibility with postgresql database.
 register_adapter(np.int64, AsIs)
@@ -587,6 +589,8 @@ def process_data():
 # UI Callbacks #
 ################
 def register_callbacks(dashapp):
+    df = get_data()
+    
     @dashapp.callback(Output('output-data-upload', 'children'),
                       [Input('upload-data', 'contents')],
                       [State('upload-data', 'filename'),
@@ -600,7 +604,33 @@ def register_callbacks(dashapp):
                 pass
             except (UploadError, ModelCreationError) as e:
                 return [html.Div(str(e))]  # Display the error message.
-            # FixMe: Figure out how to replace output-data-db table. If set as Output, it's not rendered initially.
-            # ToDo: return plots.
             children = [html.Div("Upload successful.")]
             return children
+
+    @dashapp.callback(Output('datastore', 'data'),
+                      [Input('user-IDs', 'value')])
+    def filter_users(users_selected):
+        if not users_selected:
+            # Return all the rows on initial load/no country selected.
+            return df.to_dict('records')
+    
+        filtered = df.query('`participant ID` in @users_selected')
+    
+        return filtered.to_dict('records')
+
+    @dashapp.callback(Output('trials-table', 'data'),
+                      [Input('datastore', 'data')])
+    def on_data_set_table(data):
+        if data is None:
+            raise PreventUpdate
+    
+        return data
+
+    @dashapp.callback(Output('scatterplot-trials', 'figure'),
+                      [Input('datastore', 'data')])
+    def on_data_set_graph(data):
+        if data is None:
+            raise PreventUpdate
+        
+        users = pd.DataFrame(data)['participant ID'].unique()
+        return get_figure(df, users_selected=users)

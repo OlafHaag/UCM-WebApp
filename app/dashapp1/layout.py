@@ -1,6 +1,7 @@
 import dash_core_components as dcc
 import dash_html_components as html
 import dash_table
+import plotly.graph_objs as go
 
 from .analysis import get_data
 
@@ -41,6 +42,50 @@ def create_header():
     return header
 
 
+def get_figure(df, users_selected=None):
+    if users_selected is not None:
+        dff = df.query('`participant ID` in @users_selected')
+    else:
+        dff = df
+        
+    fig = go.Figure(
+        data=[
+            go.Scatter(
+                x=dff[dff['block'] == i]['df1'],
+                y=dff[dff['block'] == i]['df2'],
+                text=[f"Participant {j}" for j in dff[dff['block'] == i]['participant ID'].values],
+                mode='markers',
+                opacity=0.7,
+                marker={
+                    'size': 15,
+                    'line': {'width': 0.5, 'color': 'white'}
+                },
+                name=f"Block {i} {dff[dff['block'] == i]['constraint'].unique()[0]}",
+            ) for i in dff['block'].unique()
+        ],
+        layout=go.Layout(
+            xaxis={'title': 'Degree of Freedom 1'},
+            yaxis={'title': 'Degree of Freedom 2', 'scaleanchor': "x", 'scaleratio': 1},
+            margin={'l': 40, 'b': 40, 't': 10, 'r': 10},
+            legend={'x': 0, 'y': 0},
+            hovermode='closest'
+        )
+    )
+    fig.update_xaxes(range=[0, 100])
+    fig.update_yaxes(range=[0, 100])
+    fig.add_trace(go.Scatter(
+        x=[0, 125],
+        y=[125, 0],
+        name="task goal 1"
+    ))
+    fig.add_scatter(y=[75, 50], x=[50, 75],
+                    name="task goal 2",
+                    text=["df1 contrained", "df2 constrained"],
+                    mode='markers',
+                    marker={'size': 25})
+    return fig
+
+
 def create_content():
     """ Widgets. """
     upload_widget = dcc.Upload(id='upload-data',
@@ -52,31 +97,60 @@ def create_content():
                                       'borderWidth': '1px',
                                       'borderStyle': 'dashed',
                                       'borderRadius': '5px',
-                                      'textAlign': 'center',
-                                      'margin': '10px'},
+                                      'textAlign': 'center'},
                                # Allow multiple files to be uploaded
                                multiple=True)
     
-    default_data = get_data()
+    df = get_data()
+    
+    user_chooser = html.Div([
+                        html.Div([html.Label('Participant')], style={'marginInline': '5px', 'display': 'inline-block'}),
+                        html.Div([dcc.Dropdown(
+                            id='user-IDs',
+                            options=[{'label': p, 'value': p} for p in df['participant ID'].unique()],
+                            value=[],
+                            clearable=True,
+                            multi=True,
+                        )], style={'width': '50%', 'verticalAlign': 'middle', 'display': 'inline-block'}),
+                   ], style={'marginTop': '1.5rem', })
+    
+    fig = get_figure(df)
+    
+    graph = dcc.Graph(
+        id='scatterplot-trials',
+        figure=fig
+    )
+    
     table = html.Div([
-        html.H2("Trials"),
-        html.H3("Across participants and blocks."),
         dash_table.DataTable(
-            data=default_data.to_dict('records'),
-            columns=[{'name': i, 'id': i} for i in default_data.columns]
+            id='trials-table',
+            data=df.to_dict('records'),
+            columns=[{'name': i, 'id': i} for i in df.columns],
+            filter_action="native",
+            sort_action="native",
+            sort_mode="multi",
         ),
-        html.Hr(),  # horizontal line
     ])
+
+    # ToDo: table/plot for 'sum' variance.
     
     content = html.Div([
         dcc.Store(id='datastore', storage_type='memory'),
         html.Div(id='div-data-upload',
                  children=[upload_widget],
                  # Hide Div in non-debug environment.
-                 style={'display': 'none'}),
+                 style={'paddingTop': '20px', 'display': 'none'}),
         html.Div(id='output-data-upload'),
-        html.Div(id='output-data-db',
-                 children=[table]),
+        html.Div([
+            html.H2("Degrees of Freedom Endpoint Variance"),
+            html.H3("Across participants and blocks."),
+            html.Div(id='output-data-db',
+                     children=[user_chooser, graph], style={'width': '49%',
+                                                            'verticalAlign': 'top',
+                                                            'display': 'inline-block'}),
+            html.Div([table], style={'width': '49%', 'verticalAlign': 'top', 'display': 'inline-block'}),
+            html.Hr(),  # horizontal line
+        ], style={'textAlign': 'center'})  # FixMe: side-by-side
     ])
     return content
 
