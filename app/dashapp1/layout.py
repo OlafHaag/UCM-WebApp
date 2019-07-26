@@ -1,5 +1,8 @@
 import dash_core_components as dcc
 import dash_html_components as html
+import dash_table
+
+from .analysis import get_data
 
 app_title = "Circle Task Dashboard"  # ToDo: Is there a way to get this into nav.html?
 app_route = 'circletask'
@@ -42,6 +45,7 @@ def create_content():
     """ Widgets. """
     upload_widget = dcc.Upload(id='upload-data',
                                children=html.Div(['Drag and Drop or ', html.A('Select Files')]),
+                               accept=".csv",
                                style={'width': '100%',
                                       'height': '60px',
                                       'lineHeight': '60px',
@@ -53,10 +57,26 @@ def create_content():
                                # Allow multiple files to be uploaded
                                multiple=True)
     
+    default_data = get_data()
+    table = html.Div([
+        html.H2("Trials"),
+        html.H3("Across participants and blocks."),
+        dash_table.DataTable(
+            data=default_data.to_dict('records'),
+            columns=[{'name': i, 'id': i} for i in default_data.columns]
+        ),
+        html.Hr(),  # horizontal line
+    ])
+    
     content = html.Div([
-        html.Div(id='div-data-upload',  # ToDo: hide Div in non-debug environment.
-                 children=[upload_widget]),
+        dcc.Store(id='datastore', storage_type='memory'),
+        html.Div(id='div-data-upload',
+                 children=[upload_widget],
+                 # Hide Div in non-debug environment.
+                 style={'display': 'none'}),
         html.Div(id='output-data-upload'),
+        html.Div(id='output-data-db',
+                 children=[table]),
     ])
     return content
 

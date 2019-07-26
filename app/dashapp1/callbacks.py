@@ -19,7 +19,7 @@ from psycopg2.extensions import register_adapter, AsIs
 from app.extensions import db
 from app.models import Device, User, CTSession, CircleTask
 from .exceptions import UploadError, ModelCreationError
-
+from .analysis import get_data
 
 # Numpy data types compatibility with postgresql database.
 register_adapter(np.int64, AsIs)
@@ -27,9 +27,7 @@ register_adapter(np.float64, AsIs)
 
 time_fmt = '%Y_%m_%d_%H_%M_%S'
 
-# ToDo: use df.to_sql() for trials?
-#       Get df from updated db.
-#       Show plot.
+
 ####################
 # Helper functions #
 ####################
@@ -205,7 +203,7 @@ def add_to_db(device_kwargs, user_kwargs, session_kwargs, trials_kwargs):
         sessions.append(session)
     
     # Add trials.
-    # FixMe: Optimize with df.to_sql(name='circle_tasks', con=db.engine, if_exists='append', index=False, method='multi')?
+    # ToDo: Use df.to_sql(name='circle_tasks', con=db.engine, if_exists='append', index=False, method='multi')?
     trials = list()
     for kw in trials_kwargs:
         try:
@@ -556,33 +554,14 @@ def process_upload(filenames, contents):
     except ModelCreationError:
         raise
  
-    
-################
-# Analyze Data #
-################
-def get_db_data():
-    pass
-
-
-def plot_data():
-    pass
-
-    
-# ToDo: replace, make obsolete!
-def parse_upload_contents(contents, filename, date):
-    content_type, content_string = contents.split(',')
-    
-    decoded = base64.b64decode(content_string)
-    
-    try:
-        df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
-    except Exception as e:
-        print(e)
-        return html.Div(["ERROR: There was an error during file processing."])
-    
-    return html.Div([
-        html.H5(filename),
-        html.H6(datetime.fromtimestamp(date)),
+ 
+#################
+# Visualization #
+#################
+def visualize_data(df):
+    viz = html.Div([
+        html.H5("Trials"),
+        html.H6("Across participants and blocks."),
         
         dash_table.DataTable(
             data=df.to_dict('records'),
@@ -590,14 +569,18 @@ def parse_upload_contents(contents, filename, date):
         ),
         
         html.Hr(),  # horizontal line
-        
-        # For debugging, display the raw contents provided by the web browser
-        #html.Div('Raw Content'),
-        #html.Pre(contents[0:200] + '...', style={
-        #    'whiteSpace': 'pre-wrap',
-        #    'wordBreak': 'break-all'
-        #})
     ])
+    return viz
+    
+
+def plot_data(df):
+    pass
+
+    
+def process_data():
+    df = get_data()
+    viz = visualize_data(df)
+    return viz
 
 
 ################
@@ -614,12 +597,10 @@ def register_callbacks(dashapp):
             try:
                 # Insert data into database.
                 process_upload(list_of_names, list_of_contents)
-                # FixMe: Remove Debug Vizualisation.
-                children = [
-                    parse_upload_contents(c, n, d) for c, n, d in zip(list_of_contents, list_of_names, list_of_dates)]
+                pass
             except (UploadError, ModelCreationError) as e:
                 return [html.Div(str(e))]  # Display the error message.
-    
+            # FixMe: Figure out how to replace output-data-db table. If set as Output, it's not rendered initially.
             # ToDo: return plots.
-    
+            children = [html.Div("Upload successful.")]
             return children

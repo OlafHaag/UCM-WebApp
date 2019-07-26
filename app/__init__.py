@@ -10,6 +10,9 @@ def create_app(**config_overrides):
     server = Flask(__name__, instance_relative_config=False)
     server.config.from_object(BaseConfig)
     server.config.update(config_overrides)
+    
+    # Before loading layouts we need to connect to the database.
+    register_extensions(server)
 
     # Add the first dash application to the flask server.
     from app.dashapp1.layout import serve_layout as layout1
@@ -30,7 +33,6 @@ def create_app(**config_overrides):
     # Add here any other dash apps.
     
     # Add other functionality to the flask app.
-    register_extensions(server)
     register_blueprints(server)
 
     return server
