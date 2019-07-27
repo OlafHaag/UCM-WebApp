@@ -3,7 +3,7 @@ import dash_html_components as html
 import dash_table
 import plotly.graph_objs as go
 
-from .analysis import Data
+from .analysis import get_data
 
 app_title = "Circle Task Dashboard"  # ToDo: Is there a way to get this into nav.html?
 app_route = 'circletask'
@@ -133,16 +133,16 @@ def generate_table(dataframe, table_id):
 
 def create_content():
     """ Widgets. """
-    data = Data()
+    df = get_data()
     # Create widgets.
     upload_widget = generate_upload_component('upload-data')
-    user_chooser = generate_user_select(data.df)
-    fig = generate_figure(data.df)
+    user_chooser = generate_user_select(df)
+    fig = generate_figure(df)
     graph = dcc.Graph(
         id='scatterplot-trials',
         figure=fig
     )
-    table = generate_table(data.df, 'trials-table')
+    table = generate_table(df, 'trials-table')
 
     # ToDo: table/plot for 'sum' variance.
     

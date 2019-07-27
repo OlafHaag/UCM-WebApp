@@ -21,7 +21,7 @@ from psycopg2.extensions import register_adapter, AsIs
 from app.extensions import db
 from app.models import Device, User, CTSession, CircleTask
 from .exceptions import UploadError, ModelCreationError
-from .analysis import Data
+from .analysis import get_data
 from .layout import generate_figure
 
 # Numpy data types compatibility with postgresql database.
@@ -562,7 +562,6 @@ def process_upload(filenames, contents):
 # UI Callbacks #
 ################
 def register_callbacks(dashapp):
-    data = Data()
     
     # Dash allows only 1 callback to change a specific output.
     # Therefore, we have to cram a lot into a callback if we want a component to affect multiple outputs.
@@ -580,31 +579,29 @@ def register_callbacks(dashapp):
         else:
             # Which component triggered the callback?
             comp_id = ctx.triggered[0]['prop_id'].split('.')[0]
-        
+
         if comp_id == 'upload-data':
             if list_of_contents is not None:
                 try:
                     # Insert data into database.
                     process_upload(list_of_names, list_of_contents)
-                    data.update()  # FixMe: not safe to change any variables outside of the scope of a callback function.
-                    df = Data.get_data()
+                    df = get_data()
                     records = df.to_dict('records')
                 except (UploadError, ModelCreationError) as e:
-                    df = Data.get_data()
-                    records = df.to_dict('records')
-                    # Display the error message. Store the last data.
-                    return [html.Div(str(e))], records
+                    # Only display the error message.
+                    return [html.Div(str(e))], dash.no_update
                 children = [html.Div("Upload successful.")]
                 # Display success message. Store new data.
                 return children, records
         elif comp_id == 'user-IDs':
+            df = get_data()
             if not users_selected:
                 # Return all the rows on initial load/no country selected.
-                return dash.no_update, data.df.to_dict('records')
-            filtered = data.df.query('`participant ID` in @users_selected')
+                return dash.no_update, df.to_dict('records')
+            filtered = df.query('`participant ID` in @users_selected')
             return dash.no_update, filtered.to_dict('records')
         else:
-            return dash.no_update, data.df.to_dict('records')
+            return dash.no_update, dash.no_update
 
     @dashapp.callback(Output('trials-table', 'data'),
                       [Input('datastore', 'data')])
