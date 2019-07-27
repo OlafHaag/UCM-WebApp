@@ -103,11 +103,13 @@ def generate_figure(dataframe, users_selected=None):
     )
     fig.update_xaxes(range=[0, 100])
     fig.update_yaxes(range=[0, 100])
+    # Task goal 1 visualization.
     fig.add_trace(go.Scatter(
-        x=[0, 125],
-        y=[125, 0],
+        x=[25, 100],
+        y=[100, 25],
         name="task goal 1"
     ))
+    # Task goal 2 (DoF constrained) visualization.
     fig.add_scatter(y=[75, 50], x=[50, 75],
                     name="task goal 2",
                     text=["df1 contrained", "df2 constrained"],
