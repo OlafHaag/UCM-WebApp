@@ -114,6 +114,7 @@ def generate_figure(dataframe, users_selected=None):
                     name="task goal 2",
                     text=["df1 contrained", "df2 constrained"],
                     mode='markers',
+                    opacity=0.7,
                     marker={'size': 25})
     return fig
 
