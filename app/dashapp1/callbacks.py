@@ -20,8 +20,8 @@ from psycopg2.extensions import register_adapter, AsIs
 from app.extensions import db
 from app.models import Device, User, CTSession, CircleTask
 from .exceptions import UploadError, ModelCreationError
-from .analysis import get_data
-from .layout import get_figure
+from .analysis import Data
+from .layout import generate_figure
 
 # Numpy data types compatibility with postgresql database.
 register_adapter(np.int64, AsIs)
@@ -557,39 +557,11 @@ def process_upload(filenames, contents):
         raise
  
  
-#################
-# Visualization #
-#################
-def visualize_data(df):
-    viz = html.Div([
-        html.H5("Trials"),
-        html.H6("Across participants and blocks."),
-        
-        dash_table.DataTable(
-            data=df.to_dict('records'),
-            columns=[{'name': i, 'id': i} for i in df.columns]
-        ),
-        
-        html.Hr(),  # horizontal line
-    ])
-    return viz
-    
-
-def plot_data(df):
-    pass
-
-    
-def process_data():
-    df = get_data()
-    viz = visualize_data(df)
-    return viz
-
-
 ################
 # UI Callbacks #
 ################
 def register_callbacks(dashapp):
-    df = get_data()
+    data = Data()
     
     @dashapp.callback(Output('output-data-upload', 'children'),
                       [Input('upload-data', 'contents')],
@@ -601,7 +573,7 @@ def register_callbacks(dashapp):
             try:
                 # Insert data into database.
                 process_upload(list_of_names, list_of_contents)
-                pass
+                data.update()  # FixMe: not safe to change any variables outside of the scope of a callback function.
             except (UploadError, ModelCreationError) as e:
                 return [html.Div(str(e))]  # Display the error message.
             children = [html.Div("Upload successful.")]
@@ -612,25 +584,25 @@ def register_callbacks(dashapp):
     def filter_users(users_selected):
         if not users_selected:
             # Return all the rows on initial load/no country selected.
-            return df.to_dict('records')
+            return data.df.to_dict('records')
     
-        filtered = df.query('`participant ID` in @users_selected')
+        filtered = data.df.query('`participant ID` in @users_selected')
     
         return filtered.to_dict('records')
 
     @dashapp.callback(Output('trials-table', 'data'),
                       [Input('datastore', 'data')])
-    def on_data_set_table(data):
-        if data is None:
+    def on_data_set_table(stored_data):
+        if stored_data is None:
             raise PreventUpdate
     
-        return data
+        return stored_data
 
     @dashapp.callback(Output('scatterplot-trials', 'figure'),
                       [Input('datastore', 'data')])
-    def on_data_set_graph(data):
-        if data is None:
+    def on_data_set_graph(stored_data):
+        if stored_data is None:
             raise PreventUpdate
         
-        users = pd.DataFrame(data)['participant ID'].unique()
-        return get_figure(df, users_selected=users)
+        users = pd.DataFrame(stored_data)['participant ID'].unique()
+        return generate_figure(data.df, users_selected=users)
