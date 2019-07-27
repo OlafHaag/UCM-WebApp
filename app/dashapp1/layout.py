@@ -154,7 +154,7 @@ def create_content():
                  children=[upload_widget],
                  # Hide Div in non-debug environment.
                  style={'paddingTop': '20px', 'display': 'none'}),
-        html.Div(id='output-data-upload'),
+        html.Div(id='output-data-upload', children=[]),
         
         html.Div([
             html.H2("Degrees of Freedom Endpoint Variance"),

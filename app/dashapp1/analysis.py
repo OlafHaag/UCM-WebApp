@@ -8,7 +8,8 @@ class Data:
     def __init__(self):
         self.df = self.get_data()
 
-    def get_data(self):
+    @staticmethod
+    def get_data():
         # This is considered temporary.
         trials_df = pd.read_sql_table('circle_tasks', db.engine)
         user_df = pd.read_sql_table('users', db.engine)

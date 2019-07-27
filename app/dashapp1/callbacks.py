@@ -8,6 +8,7 @@ from contextlib import suppress, wraps
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.exc import IntegrityError
 
+import dash
 import dash_html_components as html
 from dash.dependencies import Input, Output, State
 import dash_table
@@ -563,32 +564,47 @@ def process_upload(filenames, contents):
 def register_callbacks(dashapp):
     data = Data()
     
-    @dashapp.callback(Output('output-data-upload', 'children'),
-                      [Input('upload-data', 'contents')],
+    # Dash allows only 1 callback to change a specific output.
+    # Therefore, we have to cram a lot into a callback if we want a component to affect multiple outputs.
+    @dashapp.callback([Output('output-data-upload', 'children'),
+                       Output('datastore', 'data')],
+                      [Input('upload-data', 'contents'),
+                       Input('user-IDs', 'value')],
                       [State('upload-data', 'filename'),
                        State('upload-data', 'last_modified')])
-    def update_output(list_of_contents, list_of_names, list_of_dates):
+    def update_output(list_of_contents, users_selected, list_of_names, list_of_dates):
         """ Handles files that are sent to the dash update component."""
-        if list_of_contents is not None:
-            try:
-                # Insert data into database.
-                process_upload(list_of_names, list_of_contents)
-                data.update()  # FixMe: not safe to change any variables outside of the scope of a callback function.
-            except (UploadError, ModelCreationError) as e:
-                return [html.Div(str(e))]  # Display the error message.
-            children = [html.Div("Upload successful.")]
-            return children
-
-    @dashapp.callback(Output('datastore', 'data'),
-                      [Input('user-IDs', 'value')])
-    def filter_users(users_selected):
-        if not users_selected:
-            # Return all the rows on initial load/no country selected.
-            return data.df.to_dict('records')
-    
-        filtered = data.df.query('`participant ID` in @users_selected')
-    
-        return filtered.to_dict('records')
+        ctx = dash.callback_context
+        if not ctx.triggered:
+            comp_id = None
+        else:
+            # Which component triggered the callback?
+            comp_id = ctx.triggered[0]['prop_id'].split('.')[0]
+        
+        if comp_id == 'upload-data':
+            if list_of_contents is not None:
+                try:
+                    # Insert data into database.
+                    process_upload(list_of_names, list_of_contents)
+                    data.update()  # FixMe: not safe to change any variables outside of the scope of a callback function.
+                    df = Data.get_data()
+                    records = df.to_dict('records')
+                except (UploadError, ModelCreationError) as e:
+                    df = Data.get_data()
+                    records = df.to_dict('records')
+                    # Display the error message. Store the last data.
+                    return [html.Div(str(e))], records
+                children = [html.Div("Upload successful.")]
+                # Display success message. Store new data.
+                return children, records
+        elif comp_id == 'user-IDs':
+            if not users_selected:
+                # Return all the rows on initial load/no country selected.
+                return dash.no_update, data.df.to_dict('records')
+            filtered = data.df.query('`participant ID` in @users_selected')
+            return dash.no_update, filtered.to_dict('records')
+        else:
+            return dash.no_update, data.df.to_dict('records')
 
     @dashapp.callback(Output('trials-table', 'data'),
                       [Input('datastore', 'data')])
@@ -604,5 +620,6 @@ def register_callbacks(dashapp):
         if stored_data is None:
             raise PreventUpdate
         
-        users = pd.DataFrame(stored_data)['participant ID'].unique()
-        return generate_figure(data.df, users_selected=users)
+        df = pd.DataFrame(stored_data)
+        users = df['participant ID'].unique()
+        return generate_figure(df, users_selected=users)
