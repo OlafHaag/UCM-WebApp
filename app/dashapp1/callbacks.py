@@ -636,10 +636,13 @@ def register_callbacks(dashapp):
     
     @dashapp.callback(Output('scatterplot-trials', 'figure'),
                       [Input('trials-table', 'derived_virtual_data')],
-                      [State('filtered-store', 'data')])
-    def on_table_set_graph(table_data, filtered_data):
+                      [State('datastore', 'data')])
+    def on_table_set_graph(table_data, stored_data):
         if not table_data:
-            table_data = filtered_data
+            try:
+                return generate_figure(pd.DataFrame(None, columns=stored_data[0].keys()))
+            except (TypeError, IndexError):
+                return dash.no_update
         
         df = pd.DataFrame(table_data)
         return generate_figure(df)
