@@ -87,14 +87,20 @@ def generate_figure(df):
                     },
             name=f"Block {i} {'|'.join(df[df['block'] == i]['constraint'].unique())}",
         ) for i in df['block'].unique()]
-        
+
+    legend = go.layout.Legend(
+        xanchor='right',
+        yanchor='top',
+        orientation='v',
+    )
+    
     fig = go.Figure(
         data=data,
         layout=go.Layout(
             xaxis={'title': 'Degree of Freedom 1'},
             yaxis={'title': 'Degree of Freedom 2', 'scaleanchor': "x", 'scaleratio': 1},
             margin={'l': 40, 'b': 40, 't': 10, 'r': 10},
-            legend={'x': 0, 'y': 0},
+            legend=legend,
             hovermode='closest'
         )
     )
