@@ -31,7 +31,6 @@ html_layout = f'''<!DOCTYPE html>
                         </body>
                     </html>'''
 
-
 # Body
 theme = {"font-family": "Lobster", "background-color": "#e0e0e0"}  # ToDo: get dash page theme from static css.
 
@@ -57,42 +56,40 @@ def generate_upload_component(upload_id):
                                multiple=True)
     return upload_widget
 
-    
+
 def generate_user_select(dataframe):
     user_select = html.Div([
         html.Div([html.Label('Participant')], style={'marginInline': '5px', 'display': 'inline-block'}),
         html.Div([dcc.Dropdown(
             id='user-IDs',
-            options=[{'label': p, 'value': p} for p in dataframe['participant ID'].unique()],
+            options=[{'label': p, 'value': p} for p in dataframe['user'].unique()],
             value=[],
+            placeholder='Filter...',
             clearable=True,
             multi=True,
-        )], style={'width': '50%', 'verticalAlign': 'middle', 'display': 'inline-block'}),
-    ], style={'marginTop': '1.5rem', })
+        )], style={'verticalAlign': 'middle', 'display': 'inline-block', 'minWidth': '100px'}),
+    ], style={'marginTop': '1.5rem', 'textAlign': 'left'})
     return user_select
 
 
-def generate_figure(dataframe, users_selected=None):
-    if users_selected is not None:
-        df = dataframe.query('`participant ID` in @users_selected')
+def generate_figure(df):
+    if df.empty:
+        data = []
     else:
-        df = dataframe
+        data = [go.Scatter(
+            x=df[df['block'] == i]['df1'],
+            y=df[df['block'] == i]['df2'],
+            text=[f"Participant {j}" for j in df[df['block'] == i]['user'].values],
+            mode='markers',
+            opacity=0.7,
+            marker={'size': 15,
+                    'line': {'width': 0.5, 'color': 'white'}
+                    },
+            name=f"Block {i} {'|'.join(df[df['block'] == i]['constraint'].unique())}",
+        ) for i in df['block'].unique()]
         
     fig = go.Figure(
-        data=[
-            go.Scatter(
-                x=df[df['block'] == i]['df1'],
-                y=df[df['block'] == i]['df2'],
-                text=[f"Participant {j}" for j in df[df['block'] == i]['participant ID'].values],
-                mode='markers',
-                opacity=0.7,
-                marker={
-                    'size': 15,
-                    'line': {'width': 0.5, 'color': 'white'}
-                },
-                name=f"Block {i} {'|'.join(df[df['block'] == i]['constraint'].unique())}",
-            ) for i in df['block'].unique()
-        ],
+        data=data,
         layout=go.Layout(
             xaxis={'title': 'Degree of Freedom 1'},
             yaxis={'title': 'Degree of Freedom 2', 'scaleanchor': "x", 'scaleratio': 1},
@@ -121,15 +118,33 @@ def generate_figure(dataframe, users_selected=None):
 
 def generate_table(dataframe, table_id):
     table = dash_table.DataTable(
-            id=table_id,
-            data=dataframe.to_dict('records'),
-            columns=[{'name': i, 'id': i} for i in dataframe.columns],
-            filter_action="native",
-            sort_action="native",
-            sort_mode="multi",
-        )
+        id=table_id,
+        data=dataframe.to_dict('records'),
+        columns=[{'name': i, 'id': i} for i in dataframe.columns],
+        filter_action="native",
+        sort_action="native",
+        sort_mode="multi",
+        style_table={'overflowX': 'scroll'},
+        fixed_rows={'headers': True, 'data': 0},
+        style_cell={
+            'minWidth': '0px', 'width': '20px', 'maxWidth': '20px',
+            'whiteSpace': 'no-wrap',
+            'overflow': 'hidden',
+            'textOverflow': 'ellipsis',
+        },
+        style_cell_conditional=[
+            {'if': {'column_id': 'user'},
+             'width': '10%'},
+            {'if': {'column_id': 'constraint'},
+             'width': '10%'},
+        ],
+        css=[{
+            'selector': '.dash-cell div.dash-cell-value',
+            'rule': 'display: inline; white-space: inherit; overflow: inherit; text-overflow: inherit;'
+        }],
+    )
     return table
-    
+
 
 def create_content():
     """ Widgets. """
@@ -143,30 +158,41 @@ def create_content():
         figure=fig
     )
     table = generate_table(df, 'trials-table')
-
+    
     # ToDo: table/plot for 'sum' variance.
     
     # Tie widgets together to layout.
     content = html.Div([
         dcc.Store(id='datastore', storage_type='memory'),
+        dcc.Store(id='filtered-store', storage_type='memory'),
         
         html.Div(id='div-data-upload',
                  children=[upload_widget],
                  # Hide Div in non-debug environment.
                  style={'paddingTop': '20px', 'display': 'none'}),
-        html.Div(id='output-data-upload', children=[]),
+        html.Div(id='output-data-upload'),
         
         html.Div([
             html.H2("Degrees of Freedom Endpoint Variance"),
-            #html.H3("Across participants and blocks."),
-            html.Div(id='output-data-db',
-                     children=[user_chooser, graph], style={'width': '49%',
-                                                            'verticalAlign': 'top',
-                                                            'display': 'inline-block'}),
-            html.Div([table], style={'width': '49%', 'verticalAlign': 'top', 'display': 'inline-block'}),
-            html.Hr(),  # horizontal line
-        ], style={'textAlign': 'center'})
+            # html.H3("Across participants and blocks."),
+            html.Div(className='row',
+                     children=[
+                         html.Div(
+                             children=[html.Div(className='row',
+                                                children=[html.Button(id='refresh-btn',
+                                                                      n_clicks=0,
+                                                                      children='Refresh from DB'),
+                                                          user_chooser]),
+                                       graph],
+                             className='six columns',
+                             style={'verticalAlign': 'top'}),
+                         html.Div(table,
+                                  className='six columns',
+                                  style={'verticalAlign': 'top'})],
+                     style={'textAlign': 'center'})]),
+        html.Hr(),  # horizontal line
     ])
+    
     return content
 
 

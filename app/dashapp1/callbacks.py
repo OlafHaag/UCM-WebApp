@@ -11,7 +11,6 @@ from sqlalchemy.exc import IntegrityError
 import dash
 import dash_html_components as html
 from dash.dependencies import Input, Output, State
-import dash_table
 from dash.exceptions import PreventUpdate
 
 import pandas as pd
@@ -38,12 +37,14 @@ def none_on_error(func):
     """ Decorator that on excepting a KeyError or AttributeError within the function returns None.
     Meant for use with DataFrames and Series.
     """
+    
     @wraps(func)
     def new_func(*args):
         res = None
         with suppress(KeyError, AttributeError):
             res = func(*args)
         return res
+    
     return new_func
 
 
@@ -51,6 +52,7 @@ def raise_on_error(func):
     """ Decorator that raises ModelCreationError on KeyError, AttributeError or TypeError.
     Meant for use with functions for creating db.Model instances.
     """
+    
     @wraps(func)
     def new_func(*args, **kwargs):
         res = None
@@ -59,6 +61,7 @@ def raise_on_error(func):
         except (KeyError, AttributeError, TypeError):
             raise ModelCreationError("ERROR: Insufficient data.")
         return res
+    
     return new_func
 
 
@@ -107,7 +110,7 @@ def get_one_or_create(model,
                 return result(model.query.filter_by(**kwargs).one(), False)
             except NoResultFound:
                 raise ModelCreationError("ERROR: Integrity compromised.\nFailed to get or create model.")
-    
+
 
 @raise_on_error
 def new_device(**kwargs):
@@ -126,7 +129,7 @@ def new_device(**kwargs):
                     size_y=kwargs['size_y'],
                     platform=kwargs['platform'])
     return device
-        
+
 
 @raise_on_error
 def new_user(**kwargs):
@@ -221,7 +224,7 @@ def add_to_db(device_kwargs, user_kwargs, session_kwargs, trials_kwargs):
             raise
     
     db.session.commit()
-            
+
 
 ############################
 # Map files to table types #
@@ -245,8 +248,8 @@ def get_table_type(filename):
         return first
     else:
         return None
-    
-    
+
+
 def get_file_indices(filenames, table_type):
     """ Get indices of given table type from a list of file names.
     
@@ -314,7 +317,7 @@ def check_circletask_hash(df, sent_hash):
         raise UploadError("ERROR: Data corrupted.")
     else:
         return True
-        
+
 
 def check_circletask_touched(df, default=10.0):
     """ Check if trials are all still on at default.
@@ -368,8 +371,8 @@ def get_device_properties(csv_file):
     except Exception:
         raise UploadError("ERROR: Failed to read file contents for device.")
     return props
-    
-    
+
+
 def get_user_properties(csv_file):
     """ Get user data as dictionary from a CSV file.
 
@@ -406,7 +409,7 @@ def get_session_df(csv_file, user_id):
         raise UploadError("ERROR: Failed to read file contents for session.")
     return session_df
 
-    
+
 def get_trials_meta(filename):
     """ Take a filename and extract time_iso and block information from it.
     
@@ -424,7 +427,7 @@ def get_trials_meta(filename):
         raise UploadError("ERROR: Trial table file name has to be of form: trials-<time_iso>-Block_<n>.csv")
     meta = namedtuple('trialMeta', ['time_iso', 'block'])
     return meta(time_iso, block)
-    
+
 
 def get_trials_properties(filenames, contents, times, blocks, hashes, user_id):
     """
@@ -536,7 +539,7 @@ def parse_uploaded_files(list_of_filenames, list_of_contents):
         raise
     
     return kw
-    
+
 
 def process_upload(filenames, contents):
     """
@@ -556,67 +559,87 @@ def process_upload(filenames, contents):
         add_to_db(kw['device'], kw['user'], kw['session'], kw['trials'])
     except ModelCreationError:
         raise
- 
- 
+
+
 ################
 # UI Callbacks #
 ################
 def register_callbacks(dashapp):
-    
-    # Dash allows only 1 callback to change a specific output.
-    # Therefore, we have to cram a lot into a callback if we want a component to affect multiple outputs.
-    @dashapp.callback([Output('output-data-upload', 'children'),
-                       Output('datastore', 'data')],
-                      [Input('upload-data', 'contents'),
-                       Input('user-IDs', 'value')],
+    @dashapp.callback(Output('output-data-upload', 'children'),
+                      [Input('upload-data', 'contents')],
                       [State('upload-data', 'filename'),
                        State('upload-data', 'last_modified')])
-    def update_output(list_of_contents, users_selected, list_of_names, list_of_dates):
-        """ Handles files that are sent to the dash update component."""
+    def on_upload(list_of_contents, list_of_names, list_of_dates):
+        """ Upload data to SQL DB. """
+        if list_of_contents is not None:
+            try:
+                # Insert data into database.
+                process_upload(list_of_names, list_of_contents)
+            except (UploadError, ModelCreationError) as e:
+                # Display the error message.
+                return [html.Div(str(e))]
+            # Display success message.
+            return [html.Div("Upload successful.")]
+    
+    @dashapp.callback([Output('datastore', 'data'),
+                       Output('user-IDs', 'options')],
+                      [Input('output-data-upload', 'children'),
+                       Input('refresh-btn', 'n_clicks')])
+    def update_datastore(upload_msg, refresh_clicks):
+        """ Get data from SQL DB and store in memory.
+            Update dropdown options.
+        """
         ctx = dash.callback_context
         if not ctx.triggered:
             comp_id = None
         else:
             # Which component triggered the callback?
             comp_id = ctx.triggered[0]['prop_id'].split('.')[0]
-
-        if comp_id == 'upload-data':
-            if list_of_contents is not None:
-                try:
-                    # Insert data into database.
-                    process_upload(list_of_names, list_of_contents)
+        
+        if comp_id == 'output-data-upload':
+            try:
+                # Query db on initial call when upload_msg is None or on successful upload.
+                if upload_msg is None or "Upload successful." in upload_msg[0].children:
                     df = get_data()
-                    records = df.to_dict('records')
-                except (UploadError, ModelCreationError) as e:
-                    # Only display the error message.
-                    return [html.Div(str(e))], dash.no_update
-                children = [html.Div("Upload successful.")]
-                # Display success message. Store new data.
-                return children, records
-        elif comp_id == 'user-IDs':
-            df = get_data()
-            if not users_selected:
-                # Return all the rows on initial load/no country selected.
-                return dash.no_update, df.to_dict('records')
-            filtered = df.query('`participant ID` in @users_selected')
-            return dash.no_update, filtered.to_dict('records')
+                else:
+                    return dash.no_update, dash.no_update
+            except (TypeError, AttributeError, IndexError):
+                return dash.no_update, dash.no_update
         else:
-            return dash.no_update, dash.no_update
-
-    @dashapp.callback(Output('trials-table', 'data'),
-                      [Input('datastore', 'data')])
-    def on_data_set_table(stored_data):
-        if stored_data is None:
-            raise PreventUpdate
+            df = get_data()
+        users = [{'label': p, 'value': p} for p in df['user'].unique()]
+        # Return to datastore and user options.
+        return df.to_dict('records'), users
     
-        return stored_data
-
-    @dashapp.callback(Output('scatterplot-trials', 'figure'),
-                      [Input('datastore', 'data')])
-    def on_data_set_graph(stored_data):
+    @dashapp.callback(Output('filtered-store', 'data'),
+                      [Input('datastore', 'data'),
+                       Input('user-IDs', 'value')])
+    def filter_data(stored_data, users_selected):
+        """ Filter datastore by selected users. """
         if stored_data is None:
             raise PreventUpdate
         
         df = pd.DataFrame(stored_data)
-        users = df['participant ID'].unique()
-        return generate_figure(df, users_selected=users)
+        if not users_selected:
+            # Return all the rows on initial load/no user selected.
+            return df.to_dict('records')
+        filtered = df.query('`user` in @users_selected')
+        return filtered.to_dict('records')
+    
+    @dashapp.callback(Output('trials-table', 'data'),
+                      [Input('filtered-store', 'data')])
+    def on_filter_set_table(filtered_data):
+        if filtered_data is None:
+            raise PreventUpdate
+        
+        return filtered_data
+    
+    @dashapp.callback(Output('scatterplot-trials', 'figure'),
+                      [Input('trials-table', 'derived_virtual_data')],
+                      [State('filtered-store', 'data')])
+    def on_table_set_graph(table_data, filtered_data):
+        if not table_data:
+            table_data = filtered_data
+        
+        df = pd.DataFrame(table_data)
+        return generate_figure(df)

@@ -11,7 +11,7 @@ def get_data():
     user_df = pd.read_sql_table('users', db.engine)
     # Use users index instead of id for obfuscation.
     user_inv_map = {v: k for k, v in user_df.id.iteritems()}
-    trials_df.insert(0, 'participant ID', trials_df.user_id.map(user_inv_map))
+    trials_df.insert(0, 'user', trials_df.user_id.map(user_inv_map))
     # Get blocks.
     session_df = pd.read_sql_table('ct_sessions', db.engine)
     block_map = dict(session_df[['id', 'block']].to_dict('split')['data'])
