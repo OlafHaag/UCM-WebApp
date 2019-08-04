@@ -20,8 +20,8 @@ from psycopg2.extensions import register_adapter, AsIs
 from app.extensions import db
 from app.models import Device, User, CTSession, CircleTask
 from .exceptions import UploadError, ModelCreationError
-from .analysis import get_data
-from .layout import generate_figure
+from .analysis import get_data, get_variances
+from .layout import generate_trials_figure, generate_variance_figure
 
 # Numpy data types compatibility with postgresql database.
 register_adapter(np.int64, AsIs)
@@ -639,12 +639,34 @@ def register_callbacks(dashapp):
     @dashapp.callback(Output('scatterplot-trials', 'figure'),
                       [Input('trials-table', 'derived_virtual_data')],
                       [State('datastore', 'data')])
-    def on_table_set_graph(table_data, stored_data):
+    def on_table_set_trial_graph(table_data, stored_data):
         if not table_data:
             try:
-                return generate_figure(pd.DataFrame(None, columns=stored_data[0].keys()))
+                return generate_trials_figure(pd.DataFrame(None, columns=stored_data[0].keys()))
             except (TypeError, IndexError):
                 return dash.no_update
         
         df = pd.DataFrame(table_data)
-        return generate_figure(df)
+        return generate_trials_figure(df)
+    
+    @dashapp.callback([Output('variance-table', 'data'),
+                       Output('variance-table', 'columns')],
+                      [Input('datastore', 'data')])
+    def set_variance_table(stored_data):
+        if stored_data is None:
+            raise PreventUpdate
+        
+        df = pd.DataFrame(stored_data)
+        variances = get_variances(df)
+        columns = [{'name': i, 'id': i} for i in variances.columns]
+        return variances.to_dict('records'), columns
+    
+    @dashapp.callback(Output('barplot-variance', 'figure'),
+                      [Input('datastore', 'data')])
+    def set_variance_graph(stored_data):
+        if stored_data is None:
+            raise PreventUpdate
+        
+        df = pd.DataFrame(stored_data)
+        variances = get_variances(df)  # ToDo: store variance data on datastore change.
+        return generate_variance_figure(variances)

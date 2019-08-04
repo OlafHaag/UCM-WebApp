@@ -75,7 +75,7 @@ def generate_user_select(dataframe):
     return user_select
 
 
-def generate_figure(df):
+def generate_trials_figure(df):
     if df.empty:
         data = []
     else:
@@ -125,6 +125,34 @@ def generate_figure(df):
     return fig
 
 
+def generate_variance_figure(df):
+    if df.empty:
+        return go.Figure()
+
+    blocks = df['block'].unique()
+
+    fig = go.Figure(
+        layout=go.Layout(
+            title='Sum Variance by Block',
+            xaxis={'title': 'Block'},
+            yaxis={'title': 'Variance'},
+            #margin={'l': 40, 'b': 40, 't': 10, 'r': 10},
+            showlegend=False,
+            hovermode='closest'
+        ))
+    
+    grouped = df.groupby('user')
+    for name, group in grouped:
+        fig.add_trace(go.Bar(
+            x=group['block'],
+            y=group['sum variance'],
+            name=f'Participant {name}',
+        ))
+
+    fig.update_layout(barmode='group')
+    return fig
+
+
 def generate_table(dataframe, table_id):
     table = dash_table.DataTable(
         id=table_id,
@@ -162,11 +190,10 @@ def create_content():
     # Create widgets.
     upload_widget = generate_upload_component('upload-data')
     user_chooser = generate_user_select(df)
-    fig = generate_figure(df)
-    graph = dcc.Graph(
-        id='scatterplot-trials',
-    )
-    table = generate_table(df, 'trials-table')
+    graph = dcc.Graph(id='scatterplot-trials')
+    trials_table = generate_table(df, 'trials-table')
+    var_graph = dcc.Graph(id='barplot-variance')
+    var_table = generate_table(df, 'variance-table')
     
     # ToDo: table/plot for 'sum' variance.
     
@@ -195,10 +222,20 @@ def create_content():
                                        graph],
                              className='six columns',
                              style={'verticalAlign': 'top'}),
-                         html.Div(table,
+                         html.Div(trials_table,
                                   className='six columns',
                                   style={'verticalAlign': 'top'})],
-                     style={'textAlign': 'center'})]),
+                     style={'textAlign': 'center'}),
+            html.Div(className='row',
+                     children=[
+                         html.Div(var_graph,
+                                  className='six columns',
+                                  style={'verticalAlign': 'top', 'marginTop': '30px'}),
+                         html.Div(var_table,
+                                  className='six columns',
+                                  style={'verticalAlign': 'top'}),
+                         ]),
+        ]),
         html.Hr(),  # horizontal line
     ])
     

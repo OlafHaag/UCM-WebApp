@@ -21,3 +21,9 @@ def get_data():
     # Exclude columns.
     trials_df.drop(columns=['id', 'user_id', 'session'], inplace=True)
     return trials_df
+
+
+def get_variances(dataframe):
+    variances = dataframe.groupby(['user', 'block', 'constraint'])['sum'].var().reset_index()
+    variances.rename(columns={'sum': 'sum variance'}, inplace=True)
+    return variances
