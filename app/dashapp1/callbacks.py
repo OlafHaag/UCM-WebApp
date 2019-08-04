@@ -626,13 +626,15 @@ def register_callbacks(dashapp):
         filtered = df.query('`user` in @users_selected')
         return filtered.to_dict('records')
     
-    @dashapp.callback(Output('trials-table', 'data'),
+    @dashapp.callback([Output('trials-table', 'data'),
+                       Output('trials-table', 'columns')],
                       [Input('filtered-store', 'data')])
     def on_filter_set_table(filtered_data):
         if filtered_data is None:
             raise PreventUpdate
         
-        return filtered_data
+        columns = [{'name': i, 'id': i} for i in filtered_data[0].keys()]
+        return filtered_data, columns
     
     @dashapp.callback(Output('scatterplot-trials', 'figure'),
                       [Input('trials-table', 'derived_virtual_data')],

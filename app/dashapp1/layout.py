@@ -2,8 +2,7 @@ import dash_core_components as dcc
 import dash_html_components as html
 import dash_table
 import plotly.graph_objs as go
-
-from .analysis import get_data
+import pandas as pd
 
 app_title = "Circle Task Dashboard"  # ToDo: Is there a way to get this into nav.html?
 app_route = 'circletask'
@@ -58,11 +57,15 @@ def generate_upload_component(upload_id):
 
 
 def generate_user_select(dataframe):
+    if dataframe.empty:
+        options = dict()
+    else:
+        options = [{'label': p, 'value': p} for p in dataframe['user'].unique()]
     user_select = html.Div([
         html.Div([html.Label('Participant')], style={'marginInline': '5px', 'display': 'inline-block'}),
         html.Div([dcc.Dropdown(
             id='user-IDs',
-            options=[{'label': p, 'value': p} for p in dataframe['user'].unique()],
+            options=options,
             value=[],
             placeholder='Filter...',
             clearable=True,
@@ -154,14 +157,14 @@ def generate_table(dataframe, table_id):
 
 def create_content():
     """ Widgets. """
-    df = get_data()
+    # Start with an empty dataframe, gets populated by callbacks anyway.
+    df = pd.DataFrame()
     # Create widgets.
     upload_widget = generate_upload_component('upload-data')
     user_chooser = generate_user_select(df)
     fig = generate_figure(df)
     graph = dcc.Graph(
         id='scatterplot-trials',
-        figure=fig
     )
     table = generate_table(df, 'trials-table')
     
