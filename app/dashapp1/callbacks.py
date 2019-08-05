@@ -662,13 +662,12 @@ def register_callbacks(dashapp):
         return variances.to_dict('records'), columns
     
     @dashapp.callback(Output('barplot-variance', 'figure'),
-                      [Input('variance-table', 'derived_virtual_data')],
-                      [State('datastore', 'data')])
-    def on_table_set_variance_graph(table_data, stored_data):
+                      [Input('variance-table', 'derived_virtual_data')])
+    def on_table_set_variance_graph(table_data):
         if not table_data:
             try:
-                df = pd.DataFrame(None, columns=stored_data[0].keys())
-                df.rename(columns={'df1': 'df1 mean', 'df2': 'df2 mean', 'sum': 'sum variance'}, inplace=True)
+                columns = ['user', 'block', 'constraint', 'df1 mean', 'df2 mean', 'sum mean', 'sum var']
+                df = pd.DataFrame(None, columns=columns)
                 return generate_variance_figure(df)
             except (TypeError, IndexError):
                 return dash.no_update
