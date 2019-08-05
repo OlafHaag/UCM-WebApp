@@ -23,7 +23,10 @@ def get_data():
     return trials_df
 
 
-def get_variances(dataframe):
-    variances = dataframe.groupby(['user', 'block', 'constraint'])['sum'].var().reset_index()
-    variances.rename(columns={'sum': 'sum variance'}, inplace=True)
+def get_descriptive_stats(dataframe):
+    grouped = dataframe.groupby(['user', 'block', 'constraint'])
+    variances = grouped.agg({'df1': 'mean', 'df2': 'mean', 'sum': ['mean', 'var']})
+    variances.columns = [" ".join(x) for x in variances.columns.ravel()]
+    variances.columns = [x.strip() for x in variances.columns]
+    variances.reset_index(inplace=True)
     return variances

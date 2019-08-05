@@ -136,7 +136,7 @@ def generate_variance_figure(df):
             title='Sum Variance by Block',
             xaxis={'title': 'Block'},
             yaxis={'title': 'Variance'},
-            #margin={'l': 40, 'b': 40, 't': 10, 'r': 10},
+            margin={'l': 40, 'b': 40, 't': 40, 'r': 10},
             showlegend=False,
             hovermode='closest'
         ))
@@ -145,7 +145,7 @@ def generate_variance_figure(df):
     for name, group in grouped:
         fig.add_trace(go.Bar(
             x=group['block'],
-            y=group['sum variance'],
+            y=group['sum var'],
             name=f'Participant {name}',
         ))
 
