@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 
 import dash
 import dash_html_components as html
+from dash_table.Format import Format, Scheme
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 
@@ -561,6 +562,19 @@ def process_upload(filenames, contents):
         raise
 
 
+def get_columns_settings(dataframe):
+    columns = list()
+    for c in dataframe.columns:
+        if dataframe[c].dtype in ['float', 'int']:
+            columns.append({'name': c,
+                            'id': c,
+                            'type': 'numeric',
+                            'format': Format(precision=2, scheme=Scheme.fixed)})
+        else:
+            columns.append({'name': c, 'id': c})
+    return columns
+
+
 ################
 # UI Callbacks #
 ################
@@ -630,10 +644,12 @@ def register_callbacks(dashapp):
                        Output('trials-table', 'columns')],
                       [Input('filtered-store', 'data')])
     def on_filter_set_table(filtered_data):
-        if filtered_data is None:
+        if not filtered_data:
             raise PreventUpdate
         
-        columns = [{'name': i, 'id': i} for i in filtered_data[0].keys()]
+        # Format columns.
+        df = pd.DataFrame(filtered_data[0], index=[0])  # No need to load all the data.
+        columns = get_columns_settings(df)
         return filtered_data, columns
     
     @dashapp.callback(Output('scatterplot-trials', 'figure'),
@@ -658,7 +674,7 @@ def register_callbacks(dashapp):
         
         df = pd.DataFrame(filtered_trials_data)
         variances = get_descriptive_stats(df)
-        columns = [{'name': i, 'id': i} for i in variances.columns]
+        columns = get_columns_settings(variances)
         return variances.to_dict('records'), columns
     
     @dashapp.callback(Output('barplot-variance', 'figure'),
