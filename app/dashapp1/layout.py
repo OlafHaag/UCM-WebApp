@@ -226,7 +226,7 @@ def create_content():
         html.Div(id='output-data-upload'),
         
         html.Div([
-            html.H2("Degrees of Freedom Endpoint Variance"),
+            html.H2("Degrees of Freedom Endpoint Variance", style={'textAlign': 'center', 'marginTop': '5rem'}),
             # html.H3("Across participants and blocks."),
             html.Div(className='row',
                      children=[
@@ -243,11 +243,12 @@ def create_content():
                                   className='six columns',
                                   style={'verticalAlign': 'top'})],
                      style={'textAlign': 'center'}),
+            html.Hr(),  # horizontal line
             html.Div(className='row',
                      children=[
                          html.Div(var_graph,
                                   className='six columns',
-                                  style={'verticalAlign': 'top', 'marginTop': '30px'}),
+                                  style={'verticalAlign': 'top', 'marginTop': '70px'}),
                          html.Div(var_table,
                                   className='six columns',
                                   style={'verticalAlign': 'top'}),
