@@ -158,6 +158,7 @@ def generate_table(dataframe, table_id):
         id=table_id,
         data=dataframe.to_dict('records'),
         columns=[{'name': i, 'id': i} for i in dataframe.columns],
+        export_format='csv',
         filter_action="native",
         sort_action="native",
         sort_mode="multi",
