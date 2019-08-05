@@ -79,7 +79,7 @@ def generate_trials_figure(df):
     if df.empty:
         data = []
     else:
-        data = [go.Scatter(
+        data = [go.Scattergl(
             x=df[df['block'] == i]['df1'],
             y=df[df['block'] == i]['df2'],
             text=[f"Participant {j}" for j in df[df['block'] == i]['user'].values],
