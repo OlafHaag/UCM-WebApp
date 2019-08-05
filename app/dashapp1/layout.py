@@ -136,6 +136,7 @@ def generate_variance_figure(df):
             title='Sum Variance by Block',
             xaxis={'title': 'Block'},
             yaxis={'title': 'Variance'},
+            barmode='group',
             margin={'l': 40, 'b': 40, 't': 40, 'r': 10},
             showlegend=False,
             hovermode='closest'
@@ -149,7 +150,6 @@ def generate_variance_figure(df):
             name=f'Participant {name}',
         ))
 
-    fig.update_layout(barmode='group')
     return fig
 
 
