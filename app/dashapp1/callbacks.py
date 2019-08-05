@@ -653,7 +653,7 @@ def register_callbacks(dashapp):
                        Output('variance-table', 'columns')],
                       [Input('trials-table', 'derived_virtual_data')])
     def set_variance_table(filtered_trials_data):
-        if filtered_trials_data is None:
+        if not filtered_trials_data:
             raise PreventUpdate
         
         df = pd.DataFrame(filtered_trials_data)
