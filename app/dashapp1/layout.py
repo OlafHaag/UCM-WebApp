@@ -137,6 +137,8 @@ def generate_variance_figure(df):
             xaxis={'title': 'Block'},
             yaxis={'title': 'Variance'},
             barmode='group',
+            bargap=0.15,  # Gap between bars of adjacent location coordinates.
+            bargroupgap=0.1,  # Gap between bars of the same location coordinate.
             margin={'l': 40, 'b': 40, 't': 40, 'r': 10},
             showlegend=False,
             hovermode='closest'
@@ -149,7 +151,7 @@ def generate_variance_figure(df):
             y=group['sum var'],
             name=f'Participant {name}',
         ))
-
+    fig.update_xaxes(tickvals=blocks)
     return fig
 
 
