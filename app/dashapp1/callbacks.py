@@ -565,7 +565,7 @@ def process_upload(filenames, contents):
 def get_columns_settings(dataframe):
     columns = list()
     for c in dataframe.columns:
-        if dataframe[c].dtype in ['float', 'int']:
+        if dataframe[c].dtype == 'float':
             columns.append({'name': c,
                             'id': c,
                             'type': 'numeric',
