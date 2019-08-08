@@ -25,7 +25,7 @@ def get_data():
 
 def get_descriptive_stats(dataframe):
     grouped = dataframe.groupby(['user', 'block', 'constraint'])
-    variances = grouped.agg({'df1': 'mean', 'df2': 'mean', 'sum': ['mean', 'var']})
+    variances = grouped.agg({'df1': ['mean', 'var'], 'df2': ['mean', 'var'], 'sum': ['mean', 'var']})
     variances.columns = [" ".join(x) for x in variances.columns.ravel()]
     variances.columns = [x.strip() for x in variances.columns]
     variances.reset_index(inplace=True)
