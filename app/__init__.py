@@ -10,32 +10,33 @@ def create_app(**config_overrides):
     server = Flask(__name__, instance_relative_config=False)
     server.config.from_object(BaseConfig)
     server.config.update(config_overrides)
+
+    with server.app_context():
+        # Before loading layouts we need to connect to the database.
+        register_extensions(server)
     
-    # Before loading layouts we need to connect to the database.
-    register_extensions(server)
-
-    # Add the first dash application to the flask server.
-    from app.dashapp1.layout import serve_layout as layout1
-    from app.dashapp1.layout import html_layout as dash_ct_index
-    from app.dashapp1.layout import app_route as dash_ct_route
-    from app.dashapp1.callbacks import register_callbacks as register_callbacks1
-    from app.dashapp1.external import external_stylesheets as stylesheets1
-    from app.dashapp1.external import external_scripts as scripts1
-    register_dashapp(server,
-                     'CircleTaskAnalysis',
-                     dash_ct_route,
-                     layout1,
-                     register_callbacks1,
-                     dash_ct_index,
-                     stylesheets1,
-                     scripts1)
-
-    # Add here any other dash apps.
+        # Add the first dash application to the flask server.
+        from app.dashapp1.layout import serve_layout as layout1
+        from app.dashapp1.layout import html_layout as dash_ct_index
+        from app.dashapp1.layout import app_route as dash_ct_route
+        from app.dashapp1.callbacks import register_callbacks as register_callbacks1
+        from app.dashapp1.external import external_stylesheets as stylesheets1
+        from app.dashapp1.external import external_scripts as scripts1
+        register_dashapp(server,
+                         'CircleTaskAnalysis',
+                         dash_ct_route,
+                         layout1,
+                         register_callbacks1,
+                         dash_ct_index,
+                         stylesheets1,
+                         scripts1)
     
-    # Add other functionality to the flask app.
-    register_blueprints(server)
-
-    return server
+        # Add here any other dash apps.
+        
+        # Add other functionality to the flask app.
+        register_blueprints(server)
+    
+        return server
 
 
 def register_dashapp(app,

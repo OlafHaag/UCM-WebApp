@@ -1,14 +1,9 @@
 """Routes for core Flask app."""
-import os
-
 from flask import Blueprint, render_template
 from flask_assets import Environment, Bundle
 from flask import current_app as app
 
-main_bp = Blueprint('main_bp', __name__,
-                    template_folder='templates',
-                    static_folder='static')
-
+# Flask-Assets Configuration
 assets = Environment(app)
 Environment.auto_build = True
 Environment.debug = False
@@ -22,12 +17,15 @@ js_bundle = Bundle('js/*.js',
 assets.register('less_all', less_bundle)
 assets.register('js_all', js_bundle)
 
-# ToDo: Figure out what this is needed for and solve crash: Working outside of application context.
-'''
 if app.config['FLASK_ENV'] == 'development':
+    # Convert static/less/*.less files into static/dist/styles.css
     less_bundle.build(force=True)
     js_bundle.build()
-'''
+    
+# Blueprint Configuration
+main_bp = Blueprint('main_bp', __name__,
+                    template_folder='templates',
+                    static_folder='static')
 
 
 @main_bp.route('/')
