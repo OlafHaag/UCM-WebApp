@@ -115,6 +115,7 @@ def generate_trials_figure(df):
     fig.add_trace(go.Scatter(
         x=[25, 100],
         y=[100, 25],
+        mode='lines',
         name="task goal 1"
     ))
     # Task goal 2 (DoF constrained) visualization.
