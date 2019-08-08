@@ -30,3 +30,20 @@ def get_descriptive_stats(dataframe):
     variances.columns = [x.strip() for x in variances.columns]
     variances.reset_index(inplace=True)
     return variances
+
+
+def get_mean_x_by(dataframe, x, by=None):
+    """ Return mean values of column x (optionally grouped)
+    :param dataframe: Data
+    :type dataframe: pandas.Dataframe
+    :param x: Column name
+    :type x: str
+    :param by: Column names by which to group.
+    :type by: str|list
+    :return:
+    """
+    if by is None:
+        means = dataframe[x].mean()
+    else:
+        means = dataframe.groupby(by)[x].mean()
+    return means

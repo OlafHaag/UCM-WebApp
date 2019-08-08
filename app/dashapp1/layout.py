@@ -4,6 +4,8 @@ import dash_table
 import plotly.graph_objs as go
 import pandas as pd
 
+from .analysis import get_mean_x_by
+
 app_title = "Circle Task Dashboard"  # ToDo: Is there a way to get this into nav.html?
 app_route = 'circletask'
 
@@ -118,10 +120,13 @@ def generate_trials_figure(df):
     # Task goal 2 (DoF constrained) visualization.
     fig.add_scatter(y=[75, 50], x=[50, 75],
                     name="task goal 2",
-                    text=["df1 contrained", "df2 constrained"],
+                    text=["df1 constrained", "df2 constrained"],
                     mode='markers',
                     opacity=0.7,
                     marker={'size': 25})
+    
+    fig.update_xaxes(hoverformat=".2f")
+    fig.update_yaxes(hoverformat=".2f")
     return fig
 
 
@@ -131,6 +136,13 @@ def generate_variance_figure(df):
 
     blocks = df['block'].unique()
 
+    legend = go.layout.Legend(
+        xanchor='right',
+        yanchor='top',
+        orientation='v',
+        itemsizing='constant',
+    )
+    
     fig = go.Figure(
         layout=go.Layout(
             title='Sum Variance by Block',
@@ -140,7 +152,8 @@ def generate_variance_figure(df):
             bargap=0.15,  # Gap between bars of adjacent location coordinates.
             bargroupgap=0.1,  # Gap between bars of the same location coordinate.
             margin={'l': 40, 'b': 40, 't': 40, 'r': 10},
-            showlegend=False,
+            showlegend=True,
+            legend=legend,
             hovermode='closest'
         ))
     
@@ -150,8 +163,24 @@ def generate_variance_figure(df):
             x=group['block'],
             y=group['sum var'],
             name=f'Participant {name}',
+            showlegend=False,
         ))
     fig.update_xaxes(tickvals=blocks)
+
+    # Add mean across participants by block
+    mean_vars = get_mean_x_by(df, 'sum var', by='block')
+    for block, v in mean_vars.iteritems():
+        fig.add_trace(go.Scatter(
+            x=[block - 0.5, block, block + 0.5],
+            y=[v, v, v],
+            name=f"Block {block}",
+            hovertext=f'Block {block}',
+            hoverinfo='y',
+            textposition="top center",
+            mode='lines',
+        ))
+    fig.update_yaxes(hoverformat=".2f")
+        
     return fig
 
 
@@ -167,13 +196,15 @@ def generate_table(dataframe, table_id):
         style_table={'overflowX': 'scroll'},
         fixed_rows={'headers': True, 'data': 0},
         style_cell={
-            'minWidth': '0px', 'width': '20px', 'maxWidth': '20px',
-            'whiteSpace': 'no-wrap',
+            'minWidth': '0px', 'maxWidth': '20px',  # 'width': '20px',
+            'whiteSpace': 'normal',  # 'no-wrap',
             'overflow': 'hidden',
             'textOverflow': 'ellipsis',
         },
         style_cell_conditional=[
             {'if': {'column_id': 'user'},
+             'width': '10%'},
+            {'if': {'column_id': 'block'},
              'width': '10%'},
             {'if': {'column_id': 'constraint'},
              'width': '10%'},
