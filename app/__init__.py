@@ -85,5 +85,9 @@ def register_extensions(server):
 
 def register_blueprints(server):
     from app.routes import main_bp
+    from app.privacypolicy.routes import privacy_bp
+    from app.imprint.routes import imprint_bp
 
     server.register_blueprint(main_bp)
+    server.register_blueprint(privacy_bp)
+    server.register_blueprint(imprint_bp)

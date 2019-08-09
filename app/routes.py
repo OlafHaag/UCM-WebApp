@@ -17,6 +17,8 @@ js_bundle = Bundle('js/*.js',
 assets.register('less_all', less_bundle)
 assets.register('js_all', js_bundle)
 
+# ToDo: bundle dashapp.less separately?
+
 if app.config['FLASK_ENV'] == 'development':
     # Convert static/less/*.less files into static/dist/styles.css
     less_bundle.build(force=True)
@@ -31,6 +33,7 @@ main_bp = Blueprint('main_bp', __name__,
 @main_bp.route('/')
 def home():
     """Landing page."""
+    # ToDo: Landing page text.
     return render_template('index.html',
                            title='Uncontrolled Manifold Analysis.',
                            template='home-template',

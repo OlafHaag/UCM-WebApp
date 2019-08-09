@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import dash_core_components as dcc
 import dash_html_components as html
 import dash_table
@@ -9,6 +11,9 @@ from .analysis import get_mean_x_by, get_pca_vectors
 app_title = "Circle Task Dashboard"  # ToDo: Is there a way to get this into nav.html?
 app_route = 'circletask'
 
+templates_path = Path(__file__).parents[1] / "templates"
+nav_html = (templates_path / "nav.html").read_text()
+
 # Index page.
 html_layout = f'''<!DOCTYPE html>
                     <html>
@@ -19,10 +24,7 @@ html_layout = f'''<!DOCTYPE html>
                             {{%css%}}
                         </head>
                         <body>
-                            <nav>
-                              <a href="/"><i class="fas fa-home"></i> Home</a>
-                              <a href="/{app_route}/"><i class="fas fa-chart-line"></i> {app_title}</a>
-                            </nav>
+                            {nav_html}
                             {{%app_entry%}}
                             <footer>
                                 {{%config%}}
