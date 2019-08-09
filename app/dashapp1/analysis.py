@@ -21,6 +21,7 @@ def get_data():
     trials_df.insert(2, 'constraint', trials_df['session'].map(treatment_map))
     # Exclude columns.
     trials_df.drop(columns=['id', 'user_id', 'session'], inplace=True)
+    trials_df[['user', 'block', 'constraint']] = trials_df[['user', 'block', 'constraint']].astype('category')
     return trials_df
 
 
@@ -28,6 +29,7 @@ def get_descriptive_stats(dataframe):
     grouped = dataframe.groupby(['user', 'block', 'constraint'])
     variances = grouped.agg({'df1': ['mean', 'var'], 'df2': ['mean', 'var'], 'sum': ['mean', 'var']})
     variances.columns = [" ".join(x) for x in variances.columns.ravel()]
+    variances.dropna(inplace=True)
     variances.columns = [x.strip() for x in variances.columns]
     variances.reset_index(inplace=True)
     return variances
@@ -50,30 +52,50 @@ def get_mean_x_by(dataframe, x, by=None):
     return means
 
 
-def get_pca_vectors(dataframe):
+def get_pca_data(dataframe):
     """
     
     :param dataframe: Data holding 'df1' and 'df2' values as columns.
     :type dataframe: pandas.DataFrame
-    :return: principal components as vector pairs in input space with mean as origin first and offset second.
-    :rtype: list|None
+    :return: Explained variance, components and means.
+    :rtype: pandas.DataFrame
     """
     # We don't reduce dimensionality, but overlay the 2 principal components in 2D.
     pca = PCA(n_components=2)
     
     x = dataframe[['df1', 'df2']].values
     try:
-        # df1 and df2 have the same scale. No need to standardize.
+        # df1 and df2 have the same scale. No need to standardize. Standardizing might actually distort PCA here.
         pca.fit(x)
     except ValueError:
-        return None
+        # Return empty.
+        return pd.DataFrame(columns=['var_expl', 'x', 'y', 'meanx', 'meany'])
     
+    df = pd.DataFrame({'var_expl': pca.explained_variance_.T,
+                       'x': pca.components_[:, 0],
+                       'y': pca.components_[:, 1],
+                       'meanx': pca.mean_[0],
+                       'meany': pca.mean_[1],
+                       },
+                      index=[1, 2]  # For designating principal components.
+                      )
+    return df
+
+
+def get_pca_vectors(dataframe):
+    """
+    :param dataframe: Tabular PCA data.
+    :type dataframe: pandas.DataFrame
+    :return: Principal components as vector pairs in input space with mean as origin first and offset second.
+    :rtype: list
+    """
     vectors = list()
     # Use the "components" to define the direction of the vectors,
     # and the "explained variance" to define the squared-length of the vectors.
-    for length, vector in zip(pca.explained_variance_, pca.components_):
-        v = vector * 3 * np.sqrt(length)
-        mean_offset = (pca.mean_, pca.mean_ + v)
+    for pc, row in dataframe.iterrows():
+        v = row[['x', 'y']].values * np.sqrt(row['var_expl']) * 3  # Scale up for better visibility.
+        mean = row[['meanx', 'meany']].values
+        mean_offset = (mean, mean + v)
         vectors.append(mean_offset)
     
     return vectors
@@ -91,13 +113,15 @@ def get_pca_vectors_by(dataframe, by=None):
     """
     vector_pairs = list()
     if by is None:
-        v = get_pca_vectors(dataframe)
+        pca_df = get_pca_data(dataframe)
+        v = get_pca_vectors(pca_df)
         vector_pairs.append(v)
     else:
         grouped = dataframe.groupby(by)
         for group, data in grouped:
-            x = data[['df1', 'df2']]
-            v = get_pca_vectors(x)
+            pca_df = get_pca_data(data)
+            v = get_pca_vectors(pca_df)
             vector_pairs.append(v)
+            # ToDo: Augment by groupby criteria.
             
     return vector_pairs

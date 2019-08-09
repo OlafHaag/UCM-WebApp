@@ -21,8 +21,8 @@ from psycopg2.extensions import register_adapter, AsIs
 from app.extensions import db
 from app.models import Device, User, CTSession, CircleTask
 from .exceptions import UploadError, ModelCreationError
-from .analysis import get_data, get_descriptive_stats
-from .layout import generate_trials_figure, generate_variance_figure
+from .analysis import get_data, get_descriptive_stats, get_pca_data
+from .layout import generate_trials_figure, generate_variance_figure, get_pca_annotations
 
 # Numpy data types compatibility with postgresql database.
 register_adapter(np.int64, AsIs)
@@ -625,50 +625,59 @@ def register_callbacks(dashapp):
         # Return to datastore and user options.
         return df.to_dict('records'), users
     
-    @dashapp.callback(Output('filtered-store', 'data'),
-                      [Input('datastore', 'data'),
-                       Input('user-IDs', 'value')])
-    def filter_data(stored_data, users_selected):
-        """ Filter datastore by selected users. """
-        if stored_data is None:
-            raise PreventUpdate
-        
-        df = pd.DataFrame(stored_data)
-        if not users_selected:
-            # Return all the rows on initial load/no user selected.
-            return df.to_dict('records')
-        filtered = df.query('`user` in @users_selected')
-        return filtered.to_dict('records')
-    
     @dashapp.callback([Output('trials-table', 'data'),
                        Output('trials-table', 'columns')],
-                      [Input('filtered-store', 'data')])
-    def on_filter_set_table(filtered_data):
-        if not filtered_data:
+                      [Input('datastore', 'data'),
+                       Input('user-IDs', 'value')])
+    def set_table(stored_data, users_selected):
+        if not stored_data:
             raise PreventUpdate
-        
-        # Format columns.
-        df = pd.DataFrame(filtered_data[0], index=[0])  # No need to load all the data.
+
+        df = pd.DataFrame(stored_data)
+        # Format table columns.
         columns = get_columns_settings(df)
-        return filtered_data, columns
-    
+
+        if not users_selected:
+            # Return all the rows on initial load/no user selected.
+            return df.to_dict('records'), columns
+        
+        df[['user', 'block', 'constraint']] = df[['user', 'block', 'constraint']].astype('category')
+        filtered = df.query('`user` in @users_selected')
+        return filtered.to_dict('records'), columns
+
+    @dashapp.callback(Output('pca-store', 'data'),
+                      [Input('trials-table', 'derived_virtual_data')])
+    def set_pca_store(table_data):
+        df = pd.DataFrame(table_data)
+        if df.empty:
+            return []
+
+        df[['user', 'block', 'constraint']] = df[['user', 'block', 'constraint']].astype('category')
+        pca_df = get_pca_data(df)
+        return pca_df.to_dict('records')
+
     @dashapp.callback(Output('scatterplot-trials', 'figure'),
-                      [Input('trials-table', 'derived_virtual_data'),
-                       Input('pca_checkbox', 'value')],
-                      [State('datastore', 'data')])
-    def on_table_set_trial_graph(table_data, show_pca, stored_data):
+                      [Input('pca-store', 'data'),  # Delay update until PCA is through.
+                       Input('pca-checkbox', 'value')],
+                      [State('trials-table', 'derived_virtual_data'),
+                       State('datastore', 'data')])
+    def on_table_set_trial_graph(pca_data, show_pca, table_data, stored_data):
         if not table_data:
             try:
-                return generate_trials_figure(pd.DataFrame(None, columns=stored_data[0].keys()))
+                columns = stored_data[0].keys()
+                df = pd.DataFrame(None, columns=columns)
+                return generate_trials_figure(df)
             except (TypeError, IndexError):
                 return dash.no_update
-        
+            
         df = pd.DataFrame(table_data)
+        fig = generate_trials_figure(df)
+        
         if 'Show' in show_pca:
-            show = True
-        else:
-            show = False
-        return generate_trials_figure(df, show_pc=show)
+            pca_df = pd.DataFrame(pca_data)
+            arrows = get_pca_annotations(pca_df)
+            fig.layout.update(annotations=arrows)
+        return fig
     
     @dashapp.callback([Output('variance-table', 'data'),
                        Output('variance-table', 'columns')],
@@ -678,6 +687,7 @@ def register_callbacks(dashapp):
             raise PreventUpdate
         
         df = pd.DataFrame(filtered_trials_data)
+        df[['user', 'block', 'constraint']] = df[['user', 'block', 'constraint']].astype('category')
         variances = get_descriptive_stats(df)
         columns = get_columns_settings(variances)
         return variances.to_dict('records'), columns

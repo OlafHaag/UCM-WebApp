@@ -4,7 +4,7 @@ import dash_table
 import plotly.graph_objs as go
 import pandas as pd
 
-from .analysis import get_mean_x_by, get_pca_vectors_by
+from .analysis import get_mean_x_by, get_pca_vectors
 
 app_title = "Circle Task Dashboard"  # ToDo: Is there a way to get this into nav.html?
 app_route = 'circletask'
@@ -77,7 +77,33 @@ def generate_user_select(dataframe):
     return user_select
 
 
-def generate_trials_figure(df, show_pc=False):
+def get_pca_annotations(pca_dataframe):
+    # Visualize the principal components as vectors over the input data.
+    arrows = list()
+    # ToDo: groupby
+    vectors = [get_pca_vectors(pca_dataframe)]
+    if vectors:
+        for group in vectors:
+            arrows.extend([dict(
+                ax=v0[0],
+                ay=v0[1],
+                axref='x',
+                ayref='y',
+                x=v1[0],
+                y=v1[1],
+                xref='x',
+                yref='y',
+                showarrow=True,
+                arrowhead=3,
+                arrowsize=1,
+                arrowwidth=1.5,
+                arrowcolor='#636363'
+            )
+                for v0, v1 in group])
+    return arrows
+
+
+def generate_trials_figure(df):
     if df.empty:
         data = []
     else:
@@ -98,30 +124,7 @@ def generate_trials_figure(df, show_pc=False):
         yanchor='top',
         orientation='v',
     )
-
-    # Visualize the principal components as vectors over the input data.
-    arrows = list()
-    if show_pc:
-        vectors = get_pca_vectors_by(df, by=None)  # ToDo: by argument
-        if vectors is not None:
-            for group in vectors:
-                arrows.extend([dict(
-                    ax=v0[0],
-                    ay=v0[1],
-                    axref='x',
-                    ayref='y',
-                    x=v1[0],
-                    y=v1[1],
-                    xref='x',
-                    yref='y',
-                    showarrow=True,
-                    arrowhead=3,
-                    arrowsize=1,
-                    arrowwidth=1.5,
-                    arrowcolor='#636363'
-                )
-                    for v0, v1 in group])
-        
+    
     fig = go.Figure(
         data=data,
         layout=go.Layout(
@@ -130,7 +133,6 @@ def generate_trials_figure(df, show_pc=False):
             margin={'l': 40, 'b': 40, 't': 10, 'r': 10},
             legend=legend,
             hovermode='closest',
-            annotations=arrows,
         )
     )
     fig.update_xaxes(range=[0, 100])
@@ -278,7 +280,7 @@ def create_content():
     # Tie widgets together to layout.
     content = html.Div([
         dcc.Store(id='datastore', storage_type='memory'),
-        dcc.Store(id='filtered-store', storage_type='memory'),
+        dcc.Store(id='pca-store', storage_type='memory'),
         
         html.Div(id='div-data-upload',
                  children=[upload_widget],
@@ -299,7 +301,7 @@ def create_content():
                                                           user_chooser]),
                                        graph,
                                        dcc.Checklist(
-                                           id='pca_checkbox',
+                                           id='pca-checkbox',
                                            options=[
                                                {'label': 'Show Principal Components', 'value': 'Show'},
                                            ],
