@@ -1,4 +1,5 @@
-external_stylesheets = ['/static/dist/css/styles.css',
+external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css',
+                        '/static/dist/css/styles.css',
                         'https://fonts.googleapis.com/css?family=Lato',
                         'https://use.fontawesome.com/releases/v5.8.1/css/all.css']
 
