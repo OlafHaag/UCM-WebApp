@@ -653,9 +653,10 @@ def register_callbacks(dashapp):
         return filtered_data, columns
     
     @dashapp.callback(Output('scatterplot-trials', 'figure'),
-                      [Input('trials-table', 'derived_virtual_data')],
+                      [Input('trials-table', 'derived_virtual_data'),
+                       Input('pca_checkbox', 'value')],
                       [State('datastore', 'data')])
-    def on_table_set_trial_graph(table_data, stored_data):
+    def on_table_set_trial_graph(table_data, show_pca, stored_data):
         if not table_data:
             try:
                 return generate_trials_figure(pd.DataFrame(None, columns=stored_data[0].keys()))
@@ -663,7 +664,11 @@ def register_callbacks(dashapp):
                 return dash.no_update
         
         df = pd.DataFrame(table_data)
-        return generate_trials_figure(df)
+        if 'Show' in show_pca:
+            show = True
+        else:
+            show = False
+        return generate_trials_figure(df, show_pc=show)
     
     @dashapp.callback([Output('variance-table', 'data'),
                        Output('variance-table', 'columns')],

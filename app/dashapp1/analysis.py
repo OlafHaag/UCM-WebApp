@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from sklearn.decomposition import PCA
 
 from app.extensions import db
 
@@ -47,3 +48,56 @@ def get_mean_x_by(dataframe, x, by=None):
     else:
         means = dataframe.groupby(by)[x].mean()
     return means
+
+
+def get_pca_vectors(dataframe):
+    """
+    
+    :param dataframe: Data holding 'df1' and 'df2' values as columns.
+    :type dataframe: pandas.DataFrame
+    :return: principal components as vector pairs in input space with mean as origin first and offset second.
+    :rtype: list|None
+    """
+    # We don't reduce dimensionality, but overlay the 2 principal components in 2D.
+    pca = PCA(n_components=2)
+    
+    x = dataframe[['df1', 'df2']].values
+    try:
+        # df1 and df2 have the same scale. No need to standardize.
+        pca.fit(x)
+    except ValueError:
+        return None
+    
+    vectors = list()
+    # Use the "components" to define the direction of the vectors,
+    # and the "explained variance" to define the squared-length of the vectors.
+    for length, vector in zip(pca.explained_variance_, pca.components_):
+        v = vector * 3 * np.sqrt(length)
+        mean_offset = (pca.mean_, pca.mean_ + v)
+        vectors.append(mean_offset)
+    
+    return vectors
+
+
+def get_pca_vectors_by(dataframe, by=None):
+    """
+
+    :param dataframe: Data holding 'df1' and 'df2' values as columns.
+    :type dataframe: pandas.DataFrame
+    :param by: Column to group data by and return 2 vectors for each group.
+    :type by: str|list
+    :return: list of principal components as vector pairs in input space with mean as origin first and offset second.
+    :rtype: list
+    """
+    vector_pairs = list()
+    if by is None:
+        v = get_pca_vectors(dataframe)
+        vector_pairs.append(v)
+    else:
+        grouped = dataframe.groupby(by)
+        for group, data in grouped:
+            x = data[['df1', 'df2']]
+            v = get_pca_vectors(x)
+            vector_pairs.append(v)
+            
+    return vector_pairs

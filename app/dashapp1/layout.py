@@ -4,7 +4,7 @@ import dash_table
 import plotly.graph_objs as go
 import pandas as pd
 
-from .analysis import get_mean_x_by
+from .analysis import get_mean_x_by, get_pca_vectors_by
 
 app_title = "Circle Task Dashboard"  # ToDo: Is there a way to get this into nav.html?
 app_route = 'circletask'
@@ -77,7 +77,7 @@ def generate_user_select(dataframe):
     return user_select
 
 
-def generate_trials_figure(df):
+def generate_trials_figure(df, show_pc=False):
     if df.empty:
         data = []
     else:
@@ -98,7 +98,30 @@ def generate_trials_figure(df):
         yanchor='top',
         orientation='v',
     )
-    
+
+    # Visualize the principal components as vectors over the input data.
+    arrows = list()
+    if show_pc:
+        vectors = get_pca_vectors_by(df, by=None)  # ToDo: by argument
+        if vectors is not None:
+            for group in vectors:
+                arrows.extend([dict(
+                    ax=v0[0],
+                    ay=v0[1],
+                    axref='x',
+                    ayref='y',
+                    x=v1[0],
+                    y=v1[1],
+                    xref='x',
+                    yref='y',
+                    showarrow=True,
+                    arrowhead=3,
+                    arrowsize=1,
+                    arrowwidth=1.5,
+                    arrowcolor='#636363'
+                )
+                    for v0, v1 in group])
+        
     fig = go.Figure(
         data=data,
         layout=go.Layout(
@@ -106,7 +129,8 @@ def generate_trials_figure(df):
             yaxis={'title': 'Degree of Freedom 2', 'scaleanchor': "x", 'scaleratio': 1},
             margin={'l': 40, 'b': 40, 't': 10, 'r': 10},
             legend=legend,
-            hovermode='closest'
+            hovermode='closest',
+            annotations=arrows,
         )
     )
     fig.update_xaxes(range=[0, 100])
@@ -128,7 +152,10 @@ def generate_trials_figure(df):
     
     fig.update_xaxes(hoverformat=".2f")
     fig.update_yaxes(hoverformat=".2f")
+
     return fig
+
+# ToDo: plot explained variance by PCs as Bar plot with cumulative explained variance line, y range 0-100
 
 
 def generate_variance_figure(df):
@@ -270,7 +297,14 @@ def create_content():
                                                                       n_clicks=0,
                                                                       children='Refresh from DB'),
                                                           user_chooser]),
-                                       graph],
+                                       graph,
+                                       dcc.Checklist(
+                                           id='pca_checkbox',
+                                           options=[
+                                               {'label': 'Show Principal Components', 'value': 'Show'},
+                                           ],
+                                           value=[])
+                                       ],
                              className='six columns',
                              style={'verticalAlign': 'top'}),
                          html.Div(trials_table,
