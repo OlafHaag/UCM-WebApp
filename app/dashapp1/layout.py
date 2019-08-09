@@ -345,12 +345,18 @@ def create_footer():
     )
     p1 = html.P(
         children=[
+            html.Span("Soure Code on "),
+            html.A("Github", href="https://github.com/OlafHaag/UCM-WebApp/", target="_blank"),
+        ]
+    )
+    p2 = html.P(
+        children=[
             html.Span("Data acquired with "),
             html.A("UCMResearchApp", href="https://github.com/OlafHaag/UCMResearchApp", target="_blank"),
         ]
     )
     
-    div = html.Div([p0, p1])
+    div = html.Div([p0, p1, p2])
     footer = html.Footer(children=div, style=footer_style)
     return footer
 
