@@ -160,13 +160,16 @@ def generate_trials_figure(df):
     return fig
 
 # ToDo: plot explained variance by PCs as Bar plot with cumulative explained variance line, y range 0-100
+def generate_pca_figure(dataframe):
+    pass
+# ToDo: angle between principal components and ucm and orthogonal.
 
 
-def generate_variance_figure(df):
-    if df.empty:
+def generate_variance_figure(dataframe):
+    if dataframe.empty:
         return go.Figure()
 
-    blocks = df['block'].unique()
+    blocks = dataframe['block'].unique()
 
     legend = go.layout.Legend(
         xanchor='right',
@@ -189,7 +192,7 @@ def generate_variance_figure(df):
             hovermode='closest'
         ))
     
-    grouped = df.groupby('user')
+    grouped = dataframe.groupby('user')
     for name, group in grouped:
         fig.add_trace(go.Bar(
             x=group['block'],
@@ -200,7 +203,7 @@ def generate_variance_figure(df):
     fig.update_xaxes(tickvals=blocks)
 
     # Add mean across participants by block
-    mean_vars = get_mean_x_by(df, 'sum var', by='block')
+    mean_vars = get_mean_x_by(dataframe, 'sum var', by='block')
     for block, v in mean_vars.iteritems():
         fig.add_trace(go.Scatter(
             x=[block - 0.5, block, block + 0.5],
@@ -276,8 +279,6 @@ def create_content():
     trials_table = generate_table(df, 'trials-table')
     var_graph = dcc.Graph(id='barplot-variance')
     var_table = generate_table(df, 'variance-table')
-    
-    # ToDo: table/plot for 'sum' variance.
     
     # Tie widgets together to layout.
     content = html.Div([
