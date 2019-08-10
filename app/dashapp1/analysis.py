@@ -71,7 +71,7 @@ def get_pca_data(dataframe):
         # Return empty.
         return pd.DataFrame(columns=['var_expl', 'x', 'y', 'meanx', 'meany'])
     
-    df = pd.DataFrame({'var_expl': pca.explained_variance_.T,
+    df = pd.DataFrame({'var_expl': pca.explained_variance_ratio_.T * 100,  # In percent
                        'x': pca.components_[:, 0],
                        'y': pca.components_[:, 1],
                        'meanx': pca.mean_[0],
@@ -93,7 +93,7 @@ def get_pca_vectors(dataframe):
     # Use the "components" to define the direction of the vectors,
     # and the "explained variance" to define the squared-length of the vectors.
     for pc, row in dataframe.iterrows():
-        v = row[['x', 'y']].values * np.sqrt(row['var_expl']) * 3  # Scale up for better visibility.
+        v = row[['x', 'y']].values * np.sqrt(row['var_expl']) * 5  # Scale up for better visibility.
         mean = row[['meanx', 'meany']].values
         mean_offset = (mean, mean + v)
         vectors.append(mean_offset)
