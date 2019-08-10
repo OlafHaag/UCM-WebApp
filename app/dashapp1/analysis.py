@@ -125,3 +125,55 @@ def get_pca_vectors_by(dataframe, by=None):
             # ToDo: Augment by groupby criteria.
             
     return vector_pairs
+
+
+def get_interior_angle(vec0, vec1):
+    """
+    
+    :param vec0: Vector 0
+    :type vec0: numpy.ndarray
+    :param vec1: Vector 1
+    :type vec1: numpy.ndarray
+    :return: Interior angle between vector0 and vector1 in degrees.
+    :rtype: float
+    """
+    angle = np.math.atan2(np.linalg.det([vec0, vec1]), np.dot(vec0, vec1))
+    degrees = abs(np.degrees(angle))
+    # Min and max should be between 0° an 90°.
+    degrees = min(degrees, 180.0 - degrees)
+    return degrees
+
+
+def get_ucm_vec(p0=None, p1=None):
+    if p0 is None:
+        p0 = np.array([25, 100])
+    if p1 is None:
+        p1 = np.array([100, 25])
+    parallel = p1 - p0
+    parallel = parallel / np.linalg.norm(parallel)  # Normalize.
+    return parallel
+
+
+def get_orthogonal_vec2d(vec):
+    ortho = np.array([-vec[1], vec[0]])
+    return ortho
+
+
+def get_pc_ucm_angles(dataframe, vec_ucm):
+    """
+    
+    :param dataframe: PCA data .
+    :type dataframe: pandas.DataFrame
+    :param vec_ucm: Vector parallel to UCM.
+    :type vec_ucm: numpy.ndarray
+    :return: Each angle between principal components and UCM parallel and orthogonal vector.
+    :rtype: pandas.DataFrame
+    """
+    vec_ucm_ortho = get_orthogonal_vec2d(vec_ucm)
+    df_angles = pd.DataFrame(columns=['parallel', 'orthogonal'], index=dataframe.index)
+    for pc, row in dataframe.iterrows():
+        angle_parallel = get_interior_angle(vec_ucm, row[['x', 'y']])
+        angle_ortho = get_interior_angle(vec_ucm_ortho, row[['x', 'y']])
+        df_angles.loc[pc] = [angle_parallel, angle_ortho]
+    df_angles[['parallel', 'orthogonal']] = df_angles[['parallel', 'orthogonal']].astype(float)
+    return df_angles

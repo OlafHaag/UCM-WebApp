@@ -3,6 +3,7 @@ from pathlib import Path
 import dash_core_components as dcc
 import dash_html_components as html
 import dash_table
+from dash_table.Format import Format, Scheme, Symbol
 import plotly.graph_objs as go
 import pandas as pd
 
@@ -79,32 +80,6 @@ def generate_user_select(dataframe):
     return user_select
 
 
-def get_pca_annotations(pca_dataframe):
-    # Visualize the principal components as vectors over the input data.
-    arrows = list()
-    # ToDo: groupby
-    vectors = [get_pca_vectors(pca_dataframe)]
-    if vectors:
-        for group in vectors:
-            arrows.extend([dict(
-                ax=v0[0],
-                ay=v0[1],
-                axref='x',
-                ayref='y',
-                x=v1[0],
-                y=v1[1],
-                xref='x',
-                yref='y',
-                showarrow=True,
-                arrowhead=3,
-                arrowsize=1,
-                arrowwidth=1.5,
-                arrowcolor='#636363'
-            )
-                for v0, v1 in group])
-    return arrows
-
-
 def generate_trials_figure(df):
     if df.empty:
         data = []
@@ -130,9 +105,15 @@ def generate_trials_figure(df):
     fig = go.Figure(
         data=data,
         layout=go.Layout(
+            title=go.layout.Title(
+                text='Trial Endpoints',
+                xref="paper",
+                xanchor='center',
+                x=0.5,
+            ),
             xaxis={'title': 'Degree of Freedom 1'},
             yaxis={'title': 'Degree of Freedom 2', 'scaleanchor': "x", 'scaleratio': 1},
-            margin={'l': 40, 'b': 40, 't': 10, 'r': 10},
+            margin={'l': 40, 'b': 40, 't': 40, 'r': 10},
             legend=legend,
             hovermode='closest',
         )
@@ -159,64 +140,18 @@ def generate_trials_figure(df):
 
     return fig
 
-# ToDo: plot explained variance by PCs as Bar plot with cumulative explained variance line, y range 0-100
-def generate_pca_figure(dataframe):
-    pass
-# ToDo: angle between principal components and ucm and orthogonal.
 
-
-def generate_variance_figure(dataframe):
-    if dataframe.empty:
-        return go.Figure()
-
-    blocks = dataframe['block'].unique()
-
-    legend = go.layout.Legend(
-        xanchor='right',
-        yanchor='top',
-        orientation='v',
-        itemsizing='constant',
-    )
-    
-    fig = go.Figure(
-        layout=go.Layout(
-            title='Sum Variance by Block',
-            xaxis={'title': 'Block'},
-            yaxis={'title': 'Variance'},
-            barmode='group',
-            bargap=0.15,  # Gap between bars of adjacent location coordinates.
-            bargroupgap=0.1,  # Gap between bars of the same location coordinate.
-            margin={'l': 40, 'b': 40, 't': 40, 'r': 10},
-            showlegend=True,
-            legend=legend,
-            hovermode='closest'
-        ))
-    
-    grouped = dataframe.groupby('user')
-    for name, group in grouped:
-        fig.add_trace(go.Bar(
-            x=group['block'],
-            y=group['sum var'],
-            name=f'Participant {name}',
-            showlegend=False,
-        ))
-    fig.update_xaxes(tickvals=blocks)
-
-    # Add mean across participants by block
-    mean_vars = get_mean_x_by(dataframe, 'sum var', by='block')
-    for block, v in mean_vars.iteritems():
-        fig.add_trace(go.Scatter(
-            x=[block - 0.5, block, block + 0.5],
-            y=[v, v, v],
-            name=f"Block {block}",
-            hovertext=f'Block {block}',
-            hoverinfo='y',
-            textposition="top center",
-            mode='lines',
-        ))
-    fig.update_yaxes(hoverformat=".2f")
-        
-    return fig
+def get_columns_settings(dataframe):
+    columns = list()
+    for c in dataframe.columns:
+        if dataframe[c].dtype == 'float':
+            columns.append({'name': c,
+                            'id': c,
+                            'type': 'numeric',
+                            'format': Format(precision=2, scheme=Scheme.fixed)})
+        else:
+            columns.append({'name': c, 'id': c})
+    return columns
 
 
 def generate_table(dataframe, table_id):
@@ -268,6 +203,181 @@ def generate_table(dataframe, table_id):
     return table
 
 
+def get_pca_annotations(pca_dataframe):
+    # Visualize the principal components as vectors over the input data.
+    arrows = list()
+    # ToDo: groupby
+    vectors = [get_pca_vectors(pca_dataframe)]
+    if vectors:
+        for group in vectors:
+            arrows.extend([dict(
+                ax=v0[0],
+                ay=v0[1],
+                axref='x',
+                ayref='y',
+                x=v1[0],
+                y=v1[1],
+                xref='x',
+                yref='y',
+                showarrow=True,
+                arrowhead=3,
+                arrowsize=1,
+                arrowwidth=1.5,
+                arrowcolor='#636363'
+            )
+                for v0, v1 in group])
+    return arrows
+
+
+def generate_pca_figure(dataframe):
+    """ Plot explained variance by PCs as Bar plot with cumulative explained variance. """
+    legend = go.layout.Legend(
+        xanchor='right',
+        yanchor='top',
+        orientation='v',
+    )
+    
+    layout = dict(
+        title='Explained variance by different principal components',
+        yaxis={'title': 'Explained variance in percent'},
+        margin={'l': 60, 'b': 40, 't': 40, 'r': 10},
+    )
+    
+    if dataframe.empty:
+        data = []
+    else:
+        trace1 = dict(
+            type='bar',
+            x=[f'PC {i+1}' for i in dataframe.index],
+            y=dataframe['var_expl'],
+            name='Individual'
+        )
+        """ Since we didn't reduce dimensionality, cumulative explained variance will always add up to 100%.
+        # Add cumulative visualization.
+        cum_var_exp = dataframe['var_expl'].cumsum()
+        trace2 = dict(
+            type='scatter',
+            x=[f'PC {i+1}' for i in dataframe.index],
+            y=cum_var_exp,
+            name='Cumulative'
+        )
+        layout.update(legend=legend,
+                      annotations=list([
+                          dict(
+                              x=1.02,
+                              y=1.05,
+                              xref='paper',
+                              yref='paper',
+                              text='Explained Variance',
+                              showarrow=False,)]),
+                      )
+        data = [trace1, trace2]
+        """
+        data = [trace1]
+    
+    fig = dict(data=data, layout=layout)
+    return fig
+
+
+def get_pca_columns_settings(dataframe):
+    columns = list()
+    for c in dataframe.columns:
+        if dataframe[c].dtype == 'float':
+            columns.append({'name': c,
+                            'id': c,
+                            'type': 'numeric',
+                            'format': Format(nully='N/A',
+                                             precision=2,
+                                             scheme=Scheme.fixed,
+                                             symbol=Symbol.yes,
+                                             symbol_suffix=u'˚')})
+        else:
+            columns.append({'name': c, 'id': c})
+    return columns
+
+
+def generate_pca_table(dataframe):
+    dataframe.insert(0, 'pc', dataframe.index+1)
+    
+    table = dash_table.DataTable(
+        data=dataframe.to_dict('records'),
+        columns=get_pca_columns_settings(dataframe),
+        export_format='csv',
+        style_table={'overflowX': 'scroll'},
+        fixed_rows={'headers': True, 'data': 0},
+        style_cell={
+            'minWidth': '0px', 'maxWidth': '20px',  # 'width': '20px',
+            'whiteSpace': 'normal',  # 'no-wrap',
+            'overflow': 'hidden',
+            'textOverflow': 'ellipsis',
+        },
+        css=[{
+            'selector': '.dash-cell div.dash-cell-value',
+            'rule': 'display: inline; white-space: inherit; overflow: inherit; text-overflow: inherit;'
+        }],
+    )
+    return table
+
+
+def generate_variance_figure(dataframe):
+    if dataframe.empty:
+        return go.Figure()
+
+    blocks = dataframe['block'].unique()
+
+    legend = go.layout.Legend(
+        xanchor='right',
+        yanchor='top',
+        orientation='v',
+        itemsizing='constant',
+    )
+    
+    fig = go.Figure(
+        layout=go.Layout(
+            title=go.layout.Title(
+                text="Sum Variance by Block",
+                xref="paper",
+                xanchor='center',
+                x=0.5,
+            ),
+            xaxis={'title': 'Block'},
+            yaxis={'title': 'Variance'},
+            barmode='group',
+            bargap=0.15,  # Gap between bars of adjacent location coordinates.
+            bargroupgap=0.1,  # Gap between bars of the same location coordinate.
+            margin={'l': 40, 'b': 40, 't': 40, 'r': 10},
+            showlegend=True,
+            legend=legend,
+            hovermode='closest'
+        ))
+    
+    grouped = dataframe.groupby('user')
+    for name, group in grouped:
+        fig.add_trace(go.Bar(
+            x=group['block'],
+            y=group['sum var'],
+            name=f'Participant {name}',
+            showlegend=False,
+        ))
+    fig.update_xaxes(tickvals=blocks)
+
+    # Add mean across participants by block
+    mean_vars = get_mean_x_by(dataframe, 'sum var', by='block')
+    for block, v in mean_vars.iteritems():
+        fig.add_trace(go.Scatter(
+            x=[block - 0.5, block, block + 0.5],
+            y=[v, v, v],
+            name=f"Block {block}",
+            hovertext=f'Block {block}',
+            hoverinfo='y',
+            textposition="top center",
+            mode='lines',
+        ))
+    fig.update_yaxes(hoverformat=".2f")
+    
+    return fig
+    
+
 def create_content():
     """ Widgets. """
     # Start with an empty dataframe, gets populated by callbacks anyway.
@@ -277,6 +387,7 @@ def create_content():
     user_chooser = generate_user_select(df)
     graph = dcc.Graph(id='scatterplot-trials')
     trials_table = generate_table(df, 'trials-table')
+    pca_graph = dcc.Graph(id='barplot-pca')
     var_graph = dcc.Graph(id='barplot-variance')
     var_table = generate_table(df, 'variance-table')
     
@@ -308,7 +419,7 @@ def create_content():
                                            options=[
                                                {'label': 'Show Principal Components', 'value': 'Show'},
                                            ],
-                                           value=[])
+                                           value=['Show'])
                                        ],
                              className='six columns',
                              style={'verticalAlign': 'top'}),
@@ -316,6 +427,20 @@ def create_content():
                                   className='six columns',
                                   style={'verticalAlign': 'top'})],
                      style={'textAlign': 'center'}),
+            html.Hr(),  # horizontal line
+            html.Div(className='row',
+                     children=[
+                         html.Div(pca_graph,
+                                  className='six columns',
+                                  style={'verticalAlign': 'top'}),
+                         html.Div([
+                             html.H3("Divergence between principal components and UCM parallel/orthogonal space",
+                                     style={'textAlign': 'center'}),
+                             html.Div(id='pca-table-container',
+                                      className='six columns',
+                                      style={'verticalAlign': 'top'}),
+                         ]),
+                         ]),
             html.Hr(),  # horizontal line
             html.Div(className='row',
                      children=[

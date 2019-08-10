@@ -21,8 +21,13 @@ from psycopg2.extensions import register_adapter, AsIs
 from app.extensions import db
 from app.models import Device, User, CTSession, CircleTask
 from .exceptions import UploadError, ModelCreationError
-from .analysis import get_data, get_descriptive_stats, get_pca_data
-from .layout import generate_trials_figure, generate_variance_figure, get_pca_annotations
+from .analysis import get_data, get_descriptive_stats, get_pca_data, get_ucm_vec, get_pc_ucm_angles
+from .layout import (generate_trials_figure,
+                     generate_variance_figure,
+                     get_pca_annotations,
+                     generate_pca_figure,
+                     generate_pca_table,
+                     get_columns_settings)
 
 # Numpy data types compatibility with postgresql database.
 register_adapter(np.int64, AsIs)
@@ -562,19 +567,6 @@ def process_upload(filenames, contents):
         raise
 
 
-def get_columns_settings(dataframe):
-    columns = list()
-    for c in dataframe.columns:
-        if dataframe[c].dtype == 'float':
-            columns.append({'name': c,
-                            'id': c,
-                            'type': 'numeric',
-                            'format': Format(precision=2, scheme=Scheme.fixed)})
-        else:
-            columns.append({'name': c, 'id': c})
-    return columns
-
-
 ################
 # UI Callbacks #
 ################
@@ -655,6 +647,22 @@ def register_callbacks(dashapp):
         df[['user', 'block', 'constraint']] = df[['user', 'block', 'constraint']].astype('category')
         pca_df = get_pca_data(df)
         return pca_df.to_dict('records')
+    
+    @dashapp.callback(Output('barplot-pca', 'figure'),
+                      [Input('pca-store', 'data')])
+    def set_pca_plot(pca_data):
+        df = pd.DataFrame(pca_data)
+        fig = generate_pca_figure(df)
+        return fig
+        
+    @dashapp.callback(Output('pca-table-container', 'children'),
+                      [Input('pca-store', 'data')])
+    def set_pca_angle_table(pca_data):
+        pca_df = pd.DataFrame(pca_data)
+        ucm_vec = get_ucm_vec()  # ToDo: Have a widget to set ucm points?
+        angle_df = get_pc_ucm_angles(pca_df, ucm_vec)
+        table = generate_pca_table(angle_df)
+        return [table]
 
     @dashapp.callback(Output('scatterplot-trials', 'figure'),
                       [Input('pca-store', 'data'),  # Delay update until PCA is through.
