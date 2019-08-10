@@ -47,7 +47,7 @@ def create_header():
 
 def generate_upload_component(upload_id):
     upload_widget = dcc.Upload(id=upload_id,
-                               children=html.Div(['Drag and Drop or ', html.A('Select Files')]),
+                               children=html.Div(["Drag and Drop or ", html.A("Select CSV Files"), " for upload."]),
                                accept=".csv",
                                style={'width': '100%',
                                       'height': '60px',
@@ -87,10 +87,12 @@ def generate_trials_figure(df):
         data = [go.Scattergl(
             x=df[df['block'] == i]['df1'],
             y=df[df['block'] == i]['df2'],
-            text=[f"Participant {j}" for j in df[df['block'] == i]['user'].values],
+            text=[f"df1={j['df1']}<br />df2={j['df2']}<br />Sum={j['sum']:.2f}<br />Participant {j['user']}"
+                  for _, j in df[df['block'] == i].iterrows()],
+            hoverinfo='text',
             mode='markers',
             opacity=0.7,
-            marker={'size': 15,
+            marker={'size': 10,
                     'line': {'width': 0.5, 'color': 'white'}
                     },
             name=f"Block {i} {'|'.join(df[df['block'] == i]['constraint'].unique())}",
@@ -130,7 +132,8 @@ def generate_trials_figure(df):
     # Task goal 2 (DoF constrained) visualization.
     fig.add_scatter(y=[75, 50], x=[50, 75],
                     name="task goal 2",
-                    text=["df1 constrained", "df2 constrained"],
+                    text=["task goal 2 (df1=50)", "task goal 2 (df2=50)"],
+                    hoverinfo='text',
                     mode='markers',
                     opacity=0.7,
                     marker={'size': 25})
@@ -348,6 +351,13 @@ def generate_variance_figure(dataframe):
             margin={'l': 40, 'b': 40, 't': 40, 'r': 10},
             showlegend=True,
             legend=legend,
+            annotations=list([
+                dict(x=1.02,
+                     y=1.05,
+                     xref='paper',
+                     yref='paper',
+                     text='Mean Variance',
+                     showarrow=False, )]),
             hovermode='closest'
         ))
     
