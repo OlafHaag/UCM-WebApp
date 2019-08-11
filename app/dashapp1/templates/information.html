@@ -1,0 +1,49 @@
+<div class="container" style="text-align: center; margin-top: 90px; margin-inline: auto">
+    <h1>The Circle Task</h1>
+    <h2>Task Information</h2>
+    <div style="text-align: justify;">
+        <!-- ToDo: Intro text -->
+        <p>
+            Todorov claimed (*citation needed) that one could control redundant degrees of freedom only at the expense of increased variance
+            at the task relevant degrees of freedom. The reason for this would be the increase in control-dependent muscle noise.
+            If we would impose an additional task on a degree of freedom that is also part of a redundancy in another task,
+            we should expect an increase in variance in the original task's performance criterion, if this claim is true.
+        </p>
+        <p>
+            This analysis uses data acquired with the <a href="https://github.com/OlafHaag/UCMResearchApp">UCM Research app's</a> Circle Task.
+            It's main purpose is to exercise UCM analysis on a small scale in preparation for more complex analyses.
+            This task mimics the two-finger pressure task (*refernce needed).
+            As the circle task is done on a touch device bi-manually, the contributing muscular systems to the task are not directly connected and
+            may receive separate motor commands. Increased control-dependent noise on one side should not affect the other.
+            An increase in the first task criterion in a 2 tasks exercise could be attributed to increased attention/multi-task cost.
+        </p>
+        <p>
+            Furthermore, steepest increase and so on, i.e. both sliders expected to go up.
+            When constrained is lifted, redundant degrees of freedom would be uncontrolled again, utilizing more range of motion and therefore,
+            more variance in redundant degrees of freedom again and less variance in performance criterion.
+            No priming effect expected due to constraints.
+        </p>
+    </div>
+    <div class="row">
+        <div class="six columns">
+            <img src="../../static/dist/img/1task_trial.gif" ng-show="1 task trial" style="max-width: 100%; height: auto">
+            <p>Example: A trial with only 1 task. The task is to scale the size of the white disc to match the green ring
+                by using the 2 vertical sliders.
+                The violet outer ring is a visualization of the countdown, which is also displayed in seconds in the middle.
+                If it reaches a full circle, the trial is over.
+                The left slider is degree of freedom 1 (df1) and the right slider is degree of freedom 2 (df2).
+                Both add equally to the size of the white disc.
+                Sliders have a range from 0-100 and start at 10%. To successfully accomplish the task, they need to add up to 125.
+            </p>
+        </div>
+        <div class="six columns">
+            <img src="../../static/dist/img/2tasks_trial.gif" ng-show="2 tasks trial" style="max-width: 100%; height: auto">
+            <p>Example: A trial with 2 concurrent tasks. In addition to scaling up the white disc, one slider is expanding the blue arc.
+                The extra task goal is to make the blue arc meet the blue dot at the bottom of the green circle.
+                Which slider is controlling the blue arc is once chosen randomly at the beginning of the block.
+                The slider controlling the arc receives a color coding as well. This second task goal imposes a constraint
+                on the chosen degree of freedom to be at 50%.
+            </p>
+        </div>
+    </div>
+</div>

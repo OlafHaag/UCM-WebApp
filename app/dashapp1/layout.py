@@ -12,8 +12,10 @@ from .analysis import get_mean_x_by, get_pca_vectors
 app_title = "Circle Task Dashboard"  # ToDo: Is there a way to get this into nav.html?
 app_route = 'circletask'
 
-templates_path = Path(__file__).parents[1] / "templates"
-nav_html = (templates_path / "nav.html").read_text()
+top_templates_path = Path(__file__).parents[1] / 'templates'
+nav_html = (top_templates_path / 'nav.html').read_text()
+dashapp_templates_path = Path(__file__).parent / 'templates'
+intro_html = (dashapp_templates_path / 'information.html').read_text()
 
 # Index page.
 html_layout = f'''<!DOCTYPE html>
@@ -26,6 +28,7 @@ html_layout = f'''<!DOCTYPE html>
                         </head>
                         <body>
                             {nav_html}
+                            {intro_html}
                             {{%app_entry%}}
                             <footer>
                                 {{%config%}}
