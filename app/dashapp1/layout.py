@@ -38,8 +38,9 @@ html_layout = f'''<!DOCTYPE html>
                         </body>
                     </html>'''
 
+# ToDo: Move style setttings to less bundle.
 # Body
-theme = {"font-family": "Lobster", "background-color": "#e0e0e0"}  # ToDo: get dash page theme from static css.
+theme = {"font-family": "Lobster", "background-color": "#e0e0e0"}
 
 
 def create_header():
@@ -397,12 +398,42 @@ def create_content():
     df = pd.DataFrame()
     # Create widgets.
     upload_widget = generate_upload_component('upload-data')
-    user_chooser = generate_user_select(df)
-    graph = dcc.Graph(id='scatterplot-trials')
-    trials_table = generate_table(df, 'trials-table')
+    filter_hint = html.P("You can filter columns by =, !=, <, <=, >=, > for numbers and typing characters or "
+                         "'contains <word>' (without angle brackets) for string columns.",
+                         style={'textAlign': 'justify'})
+    trials_graph = html.Div(className='six columns',
+                            style={'verticalAlign': 'top'},
+                            children=[html.Div(className='row',
+                                               children=[html.Button(id='refresh-btn',
+                                                                     n_clicks=0,
+                                                                     children='Refresh from DB'),
+                                                         generate_user_select(df)]),
+                                      dcc.Graph(id='scatterplot-trials'),
+                                      dcc.Checklist(id='pca-checkbox',
+                                                    options=[{'label': 'Show Principal Components', 'value': 'Show'}],
+                                                    value=['Show'])
+                                      ],
+                            )
+    trials_table = html.Div(className='six columns',
+                            style={'verticalAlign': 'top'},
+                            children=[generate_table(df, 'trials-table'),
+                                      filter_hint,
+                                      ])
     pca_graph = dcc.Graph(id='barplot-pca')
+    pca_table = html.Div(children=
+                         [html.H3("Divergence between principal components and UCM parallel/orthogonal space",
+                                  style={'textAlign': 'center'}),
+                          html.Div(id='pca-table-container',
+                                   className='six columns',
+                                   style={'verticalAlign': 'top'}),
+                          ])
     var_graph = dcc.Graph(id='barplot-variance')
-    var_table = generate_table(df, 'variance-table')
+    var_table = html.Div(className='six columns',
+                         style={'verticalAlign': 'top'},
+                         children=
+                         [generate_table(df, 'variance-table'),
+                         filter_hint,
+                          ])
     
     # Tie widgets together to layout.
     content = html.Div([
@@ -418,41 +449,18 @@ def create_content():
         html.Div([
             html.H2("Degrees of Freedom Endpoint Variance", style={'textAlign': 'center', 'marginTop': '5rem'}),
             # html.H3("Across participants and blocks."),
-            html.Div(className='row',
+            html.Div(className='row', style={'textAlign': 'center'},
                      children=[
-                         html.Div(
-                             children=[html.Div(className='row',
-                                                children=[html.Button(id='refresh-btn',
-                                                                      n_clicks=0,
-                                                                      children='Refresh from DB'),
-                                                          user_chooser]),
-                                       graph,
-                                       dcc.Checklist(
-                                           id='pca-checkbox',
-                                           options=[
-                                               {'label': 'Show Principal Components', 'value': 'Show'},
-                                           ],
-                                           value=['Show'])
-                                       ],
-                             className='six columns',
-                             style={'verticalAlign': 'top'}),
-                         html.Div(trials_table,
-                                  className='six columns',
-                                  style={'verticalAlign': 'top'})],
-                     style={'textAlign': 'center'}),
+                         trials_graph,
+                         trials_table,
+                     ]),
             html.Hr(),  # horizontal line
             html.Div(className='row',
                      children=[
                          html.Div(pca_graph,
                                   className='six columns',
                                   style={'verticalAlign': 'top'}),
-                         html.Div([
-                             html.H3("Divergence between principal components and UCM parallel/orthogonal space",
-                                     style={'textAlign': 'center'}),
-                             html.Div(id='pca-table-container',
-                                      className='six columns',
-                                      style={'verticalAlign': 'top'}),
-                         ]),
+                         pca_table
                          ]),
             html.Hr(),  # horizontal line
             html.Div(className='row',
@@ -460,9 +468,7 @@ def create_content():
                          html.Div(var_graph,
                                   className='six columns',
                                   style={'verticalAlign': 'top', 'marginTop': '70px'}),
-                         html.Div(var_table,
-                                  className='six columns',
-                                  style={'verticalAlign': 'top'}),
+                         var_table
                          ]),
         ]),
         html.Hr(),  # horizontal line
