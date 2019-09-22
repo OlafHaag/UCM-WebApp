@@ -26,6 +26,12 @@ def get_data():
 
 
 def get_descriptive_stats(dataframe):
+    """
+    
+    :param dataframe: Data
+    :type dataframe: pandas.Dataframe
+    :return: Means, variances for df1, df2 and their sum.
+    """
     grouped = dataframe.groupby(['user', 'block', 'constraint'])
     variances = grouped.agg({'df1': ['mean', 'var'], 'df2': ['mean', 'var'], 'sum': ['mean', 'var']})
     variances.columns = [" ".join(x) for x in variances.columns.ravel()]
@@ -37,13 +43,15 @@ def get_descriptive_stats(dataframe):
 
 def get_mean_x_by(dataframe, x, by=None):
     """ Return mean values of column x (optionally grouped)
+    
     :param dataframe: Data
     :type dataframe: pandas.Dataframe
     :param x: Column name
     :type x: str
     :param by: Column names by which to group.
     :type by: str|list
-    :return:
+    :return: mean value, optionally for each group.
+    :rtype: numpy.float64|pandas.Series
     """
     if by is None:
         means = dataframe[x].mean()
@@ -84,6 +92,7 @@ def get_pca_data(dataframe):
 
 def get_pca_vectors(dataframe):
     """
+    
     :param dataframe: Tabular PCA data.
     :type dataframe: pandas.DataFrame
     :return: Principal components as vector pairs in input space with mean as origin first and offset second.
@@ -128,7 +137,7 @@ def get_pca_vectors_by(dataframe, by=None):
 
 
 def get_interior_angle(vec0, vec1):
-    """
+    """ Get the smaller angle between vec0 and vec1 in degrees.
     
     :param vec0: Vector 0
     :type vec0: numpy.ndarray
@@ -145,6 +154,7 @@ def get_interior_angle(vec0, vec1):
 
 
 def get_ucm_vec(p0=None, p1=None):
+    """ Returns 2D unit vector in direction of uncontrolled manifold. """
     if p0 is None:
         p0 = np.array([25, 100])
     if p1 is None:
@@ -155,12 +165,18 @@ def get_ucm_vec(p0=None, p1=None):
 
 
 def get_orthogonal_vec2d(vec):
+    """ Get a vector that is orthogonal to vec and has same length.
+    
+    :param vec: 2D Vector
+    :return: 2D Vector orthogonal to vec.
+    :rtype: numpy.ndarray
+    """
     ortho = np.array([-vec[1], vec[0]])
     return ortho
 
 
 def get_pc_ucm_angles(dataframe, vec_ucm):
-    """
+    """ Computes the interior angles between pca vectors and ucm parallel/orthogonal vectors.
     
     :param dataframe: PCA data .
     :type dataframe: pandas.DataFrame
@@ -177,3 +193,37 @@ def get_pc_ucm_angles(dataframe, vec_ucm):
         df_angles.loc[pc] = [angle_parallel, angle_ortho]
     df_angles[['parallel', 'orthogonal']] = df_angles[['parallel', 'orthogonal']].astype(float)
     return df_angles
+
+
+def get_projections(points, vec_ucm):
+    """ Returns coefficients a and b in x = a*vec_ucm + b*vec_ortho with x being a data point.
+    Projection is computed using a transformation matrix with ucm parallel and orthogonal vectors as basis.
+    
+    :param points: Data of 2D points.
+    :type points: pandas.Dataframe
+    :param vec_ucm: Unit vector parallel to uncontrolled manifold.
+    :type vec_ucm: numpy.ndarray
+    :return: Array with projected lengths onto vector parallel to UCM as 'a', onto vector orthogonal to UCM as 'b'.
+    :rtype: pandas.Dataframe
+    """
+    # Get the vector orthogonal to the UCM.
+    vec_ortho = get_orthogonal_vec2d(vec_ucm)
+    # Build a transformation matrix with vec_ucm and vec_ortho as new basis vectors.
+    A = np.vstack((vec_ucm, vec_ortho)).T
+    # For computational efficiency we shortcut the calculation with matrix multiplication.
+    coeffs = points@A
+    coeffs.columns = ['a', 'b']
+    return coeffs
+
+
+def get_stats(data):
+    """ Return mean and variance statistics for data.
+    
+    :param data: numerical data.
+    :type data: pandas.Dataframe
+    :return: Dataframe with columns mean, var, count and column names of data as rows.
+    :rtype: pandas.Dataframe
+    """
+    stats = data.agg(['mean', 'var', 'count']).T
+    stats['count'] = stats['count'].astype(int)
+    return stats
