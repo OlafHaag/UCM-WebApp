@@ -28,6 +28,6 @@ imprint_bp = Blueprint('imprint_bp', __name__,
 def privacy():
     """ Privacy policy page route."""
     return render_template('index.html',
-                           title='Imprint',
+                           title='ucmwebapp|Imprint',
                            template='imprint-template',
                            body=contact_html + info_html)

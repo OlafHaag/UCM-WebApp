@@ -23,6 +23,6 @@ privacy_bp = Blueprint('privacy_bp', __name__,
 def privacy():
     """ Privacy policy page route."""
     return render_template('index.html',
-                           title='Privacy Policy',
+                           title='ucmwebapp|Privacy Policy',
                            template='privacy-template',
                            body=information_html)
