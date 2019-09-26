@@ -16,6 +16,7 @@ top_templates_path = Path(__file__).parents[1] / 'templates'
 nav_html = (top_templates_path / 'nav.html').read_text()
 dashapp_templates_path = Path(__file__).parent / 'templates'
 intro_html = (dashapp_templates_path / 'information.html').read_text()
+refs_html = (dashapp_templates_path / 'references.html').read_text()
 
 # Index page.
 html_layout = f'''<!DOCTYPE html>
@@ -30,6 +31,7 @@ html_layout = f'''<!DOCTYPE html>
                             {nav_html}
                             {intro_html}
                             {{%app_entry%}}
+                            {refs_html}
                             <footer>
                                 {{%config%}}
                                 {{%scripts%}}
