@@ -196,7 +196,8 @@ def get_pc_ucm_angles(dataframe, vec_ucm):
 
 
 def get_projections(points, vec_ucm):
-    """ Returns coefficients a and b in x = a*vec_ucm + b*vec_ortho with x being a data point.
+    """ Returns coefficients a and b in x = a*vec_ucm + b*vec_ortho with x being the difference of a data point and
+    the mean.
     Projection is computed using a transformation matrix with ucm parallel and orthogonal vectors as basis.
     
     :param points: Data of 2D points.
@@ -207,11 +208,13 @@ def get_projections(points, vec_ucm):
     :rtype: pandas.Dataframe
     """
     # Get the vector orthogonal to the UCM.
-    vec_ortho = get_orthogonal_vec2d(vec_ucm)
+    vec_ortho = get_orthogonal_vec2d(vec_ucm)  # ToDo: mean must lie on ortho subspace, get ucm_vec accordingly from pca.
     # Build a transformation matrix with vec_ucm and vec_ortho as new basis vectors.
     A = np.vstack((vec_ucm, vec_ortho)).T
+    # z-transform the data.
+    diffs = points - points.mean()
     # For computational efficiency we shortcut the calculation with matrix multiplication.
-    coeffs = points@A
+    coeffs = diffs@A
     coeffs.columns = ['a', 'b']
     return coeffs
 
