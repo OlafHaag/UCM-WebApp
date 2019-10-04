@@ -208,10 +208,10 @@ def get_projections(points, vec_ucm):
     :rtype: pandas.Dataframe
     """
     # Get the vector orthogonal to the UCM.
-    vec_ortho = get_orthogonal_vec2d(vec_ucm)  # ToDo: mean must lie on ortho subspace, get ucm_vec accordingly from pca.
+    vec_ortho = get_orthogonal_vec2d(vec_ucm)
     # Build a transformation matrix with vec_ucm and vec_ortho as new basis vectors.
     A = np.vstack((vec_ucm, vec_ortho)).T
-    # z-transform the data.
+    # Centralize the data.
     diffs = points - points.mean()
     # For computational efficiency we shortcut the calculation with matrix multiplication.
     coeffs = diffs@A
@@ -230,3 +230,7 @@ def get_stats(data):
     stats = data.agg(['mean', 'var', 'count']).T
     stats['count'] = stats['count'].astype(int)
     return stats
+
+
+# ToDo: Correlation matrix. Note, that there is a reciprocal suppression: r(sum,df1) > 0, r(sum, df2)>0, r(df1,df2)<0
+# ToDo: normal distributions of variables?

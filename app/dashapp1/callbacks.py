@@ -659,7 +659,7 @@ def register_callbacks(dashapp):
                       [Input('pca-store', 'data')])
     def set_pca_angle_table(pca_data):
         pca_df = pd.DataFrame(pca_data)
-        ucm_vec = get_ucm_vec()  # ToDo: Have a widget to set ucm points?
+        ucm_vec = get_ucm_vec()
         angle_df = get_pc_ucm_angles(pca_df, ucm_vec)
         table = generate_pca_table(angle_df)
         return [table]

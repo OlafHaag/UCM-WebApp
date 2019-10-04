@@ -1,3 +1,4 @@
+""" This module contains all the dash components visible to the user and composes them to a layout. """
 from pathlib import Path
 
 import dash_core_components as dcc
@@ -46,12 +47,19 @@ theme = {"font-family": "Lobster", "background-color": "#e0e0e0"}
 
 
 def create_header():
+    """ The header for the dashboard. """
     header_style = {"background-color": theme["background-color"], "padding": "1.5rem"}
     header = html.Header(html.H1(children=app_title, style=header_style))
     return header
 
 
 def generate_upload_component(upload_id):
+    """ Component to receive new data to upload to the server.
+    
+    :param upload_id: Unique identifier for the component.
+    :type upload_id: str
+    :rtype: dash_core_components.Upload.Upload
+    """
     upload_widget = dcc.Upload(id=upload_id,
                                children=html.Div(["Drag and Drop or ", html.A("Select CSV Files"), " for upload."]),
                                accept=".csv",
@@ -68,6 +76,7 @@ def generate_upload_component(upload_id):
 
 
 def generate_user_select(dataframe):
+    """ Dropdown to filter for specific user data. """
     if dataframe.empty:
         options = dict()
     else:
@@ -87,6 +96,12 @@ def generate_user_select(dataframe):
 
 
 def generate_trials_figure(df):
+    """ Scatter plot of data.
+    
+    :param df: Data
+    :type df: pandas.DataFrame
+    :rtype: plotly.graph_objs.figure
+    """
     if df.empty:
         data = []
     else:
@@ -151,6 +166,13 @@ def generate_trials_figure(df):
 
 
 def get_columns_settings(dataframe):
+    """ Get display settings of columns for tables.
+    
+    :param dataframe: Data
+    :type dataframe: pandas.DataFrame
+    :return: List of dicts.  Columns displaying float values have special formatting.
+    :rtype: list
+    """
     columns = list()
     for c in dataframe.columns:
         if dataframe[c].dtype == 'float':
@@ -164,6 +186,12 @@ def get_columns_settings(dataframe):
 
 
 def generate_table(dataframe, table_id):
+    """ Get a table to display data with conditional formatting.
+    
+    :param dataframe: Data to be displayed
+    :param table_id: Unique identifier for the table.
+    :return: Dash DataTable
+    """
     table = dash_table.DataTable(
         id=table_id,
         data=dataframe.to_dict('records'),
@@ -213,6 +241,13 @@ def generate_table(dataframe, table_id):
 
 
 def get_pca_annotations(pca_dataframe):
+    """ Generate display properties of principal components for graphs.
+    
+    :param pca_dataframe: Results of PCA.
+    :type pca_dataframe: pandas.DataFrame
+    :return: List of properties for displaying arrows.
+    :rtype: list
+    """
     # Visualize the principal components as vectors over the input data.
     arrows = list()
     # ToDo: groupby
@@ -239,7 +274,13 @@ def get_pca_annotations(pca_dataframe):
 
 
 def generate_pca_figure(dataframe):
-    """ Plot explained variance by PCs as Bar plot with cumulative explained variance. """
+    """ Plot explained variance by principal components as Bar plot with cumulative explained variance.
+    
+    :param dataframe: Results of PCA.
+    :type dataframe: pandas.DataFrame
+    :return: Properties of plot as a dictionary.
+    :rtype: dict
+    """
     legend = go.layout.Legend(
         xanchor='right',
         yanchor='top',
@@ -289,6 +330,13 @@ def generate_pca_figure(dataframe):
 
 
 def get_pca_columns_settings(dataframe):
+    """ Get display settings of columns for PC vs. UCM table.
+
+    :param dataframe: Angles between principal components and ucm vectors.
+    :type dataframe: pandas.DataFrame
+    :return: List of dicts. Columns displaying float values have special formatting.
+    :rtype: list
+    """
     columns = list()
     for c in dataframe.columns:
         if dataframe[c].dtype == 'float':
@@ -306,6 +354,11 @@ def get_pca_columns_settings(dataframe):
 
 
 def generate_pca_table(dataframe):
+    """ Create a table that displays the angles between principal components and UCM vectors.
+    
+    :param dataframe: Angles between principal components and ucm vectors.
+    :return: DataTable
+    """
     dataframe.insert(0, 'pc', dataframe.index+1)
     
     table = dash_table.DataTable(
@@ -329,6 +382,11 @@ def generate_pca_table(dataframe):
 
 
 def generate_variance_figure(dataframe):
+    """ Barplot of variance in the sum of df1 and df2 per block.
+    
+    :param dataframe: Data of variances.
+    :type dataframe: pandas.DataFrame
+    """
     if dataframe.empty:
         return go.Figure()
 
@@ -395,7 +453,7 @@ def generate_variance_figure(dataframe):
     
 
 def create_content():
-    """ Widgets. """
+    """ Compose widgets into a layout. """
     # Start with an empty dataframe, gets populated by callbacks anyway.
     df = pd.DataFrame()
     # Create widgets.
@@ -480,6 +538,7 @@ def create_content():
 
 
 def create_footer():
+    """ A footer for the dashboard. """
     footer_style = {"background-color": theme["background-color"], "padding": "0.5rem"}
     p0 = html.P(
         children=[
@@ -508,6 +567,7 @@ def create_footer():
 
 
 def serve_layout():
+    """ Pack dash components into a Div with id dash-container. """
     layout = html.Div(
         children=[create_header(), create_content(), create_footer()],
         className="container",
