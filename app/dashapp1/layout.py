@@ -6,6 +6,7 @@ import dash_html_components as html
 import dash_table
 from dash_table.Format import Format, Scheme, Symbol
 import plotly.graph_objs as go
+import plotly.figure_factory as ff
 import pandas as pd
 
 from .analysis import get_mean_x_by, get_pca_vectors
@@ -53,6 +54,9 @@ def create_header():
     return header
 
 
+###############
+# Components. #
+###############
 def generate_upload_component(upload_id):
     """ Component to receive new data to upload to the server.
     
@@ -162,6 +166,23 @@ def generate_trials_figure(df):
     fig.update_xaxes(hoverformat=".2f")
     fig.update_yaxes(hoverformat=".2f")
 
+    return fig
+
+
+def generate_histograms(dataframe):
+    """ Plot distribution of data to visually check for normal distribution.
+    
+    :param dataframe: Data of df1, df2 and their sum.
+    :type dataframe: pandas.DataFrame
+    """
+    # Columns we want to plot histograms for. Display order is reversed.
+    cols = ['sum', 'df2', 'df1']
+    data = [dataframe[c] for c in cols]
+    # Create distplot with curve_type set to 'normal'.
+    fig = ff.create_distplot(data, cols, curve_type='normal')  # Override default 'kde'.
+
+    # Add title.
+    fig.update_layout(title_text='Histograms compared to Normal Distributions')
     return fig
 
 
@@ -450,8 +471,11 @@ def generate_variance_figure(dataframe):
     fig.update_yaxes(hoverformat=".2f")
     
     return fig
-    
 
+
+#######################
+# Compose components. #
+#######################
 def create_content():
     """ Compose widgets into a layout. """
     # Start with an empty dataframe, gets populated by callbacks anyway.
@@ -479,6 +503,7 @@ def create_content():
                             children=[generate_table(df, 'trials-table'),
                                       filter_hint,
                                       ])
+    hist_graph = dcc.Graph(id='histogram-dfs')
     pca_graph = dcc.Graph(id='barplot-pca')
     pca_table = html.Div(children=
                          [html.H3("Divergence between principal components and UCM parallel/orthogonal space",
@@ -513,6 +538,11 @@ def create_content():
                      children=[
                          trials_graph,
                          trials_table,
+                     ]),
+            html.Hr(),  # horizontal line
+            html.Div(className='row', style={'textAlign': 'center'},
+                     children=[
+                         hist_graph,
                      ]),
             html.Hr(),  # horizontal line
             html.Div(className='row',

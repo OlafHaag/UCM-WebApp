@@ -23,6 +23,7 @@ from app.models import Device, User, CTSession, CircleTask
 from .exceptions import UploadError, ModelCreationError
 from .analysis import get_data, get_descriptive_stats, get_pca_data, get_ucm_vec, get_pc_ucm_angles
 from .layout import (generate_trials_figure,
+                     generate_histograms,
                      generate_variance_figure,
                      get_pca_annotations,
                      generate_pca_figure,
@@ -686,7 +687,23 @@ def register_callbacks(dashapp):
             arrows = get_pca_annotations(pca_df)
             fig.layout.update(annotations=arrows)
         return fig
-    
+
+    @dashapp.callback(Output('histogram-dfs', 'figure'),
+                      [Input('trials-table', 'derived_virtual_data')],
+                      [State('datastore', 'data')])
+    def on_table_set_histogram(table_data, stored_data):
+        if not table_data:
+            try:
+                columns = stored_data[0].keys()
+                df = pd.DataFrame(None, columns=columns)
+                return generate_histograms(df)
+            except (TypeError, IndexError):
+                return dash.no_update
+        df = pd.DataFrame(table_data)
+
+        fig = generate_histograms(df)
+        return fig
+        
     @dashapp.callback([Output('variance-table', 'data'),
                        Output('variance-table', 'columns')],
                       [Input('trials-table', 'derived_virtual_data')])
