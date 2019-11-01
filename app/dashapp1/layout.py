@@ -11,7 +11,6 @@ import pandas as pd
 
 from .analysis import get_mean_x_by, get_pca_vectors
 
-app_title = "Circle Task Dashboard"  # ToDo: Is there a way to get this into nav.html?
 app_route = 'circletask'
 
 top_templates_path = Path(__file__).parents[1] / 'templates'
@@ -44,13 +43,13 @@ html_layout = f'''<!DOCTYPE html>
 
 # ToDo: Move style setttings to less bundle.
 # Body
-theme = {"font-family": "Lobster", "background-color": "#e0e0e0"}
+theme = {'font-family': 'Lobster', 'background-color': '#e7ecf7', 'height': '60vh'}
 
 
 def create_header():
     """ The header for the dashboard. """
-    header_style = {"background-color": theme["background-color"], "padding": "1.5rem"}
-    header = html.Header(html.H1(children=app_title, style=header_style))
+    header_style = {'background-color': theme['background-color'], 'padding': '1.5rem', 'textAlign': 'center'}
+    header = html.Header(html.H2(children="EDA Dashboard", style=header_style))
     return header
 
 
@@ -95,7 +94,7 @@ def generate_user_select(dataframe):
             clearable=True,
             multi=True,
         )], style={'verticalAlign': 'middle', 'display': 'inline-block', 'minWidth': '100px'}),
-    ], style={'marginTop': '1.5rem', 'textAlign': 'left'})
+    ])
     return user_select
 
 
@@ -132,14 +131,15 @@ def generate_trials_figure(df):
     fig = go.Figure(
         data=data,
         layout=go.Layout(
-            title=go.layout.Title(
-                text='Trial Endpoints',
-                xref="paper",
-                xanchor='center',
-                x=0.5,
-            ),
+            # APA 6 style doesn't have titles above figures.
+            #title=go.layout.Title(
+            #    text='Trial Endpoints',
+            #    xref='paper',
+            #    xanchor='center',
+            #    x=0.5,
+            #),
             xaxis={'title': 'Degree of Freedom 1'},
-            yaxis={'title': 'Degree of Freedom 2', 'scaleanchor': "x", 'scaleratio': 1},
+            yaxis={'title': 'Degree of Freedom 2', 'scaleanchor': 'x', 'scaleratio': 1},
             margin={'l': 40, 'b': 40, 't': 40, 'r': 10},
             legend=legend,
             hovermode='closest',
@@ -163,8 +163,8 @@ def generate_trials_figure(df):
                     opacity=0.7,
                     marker={'size': 25})
     
-    fig.update_xaxes(hoverformat=".2f")
-    fig.update_yaxes(hoverformat=".2f")
+    fig.update_xaxes(hoverformat='.2f')
+    fig.update_yaxes(hoverformat='.2f')
 
     return fig
 
@@ -181,8 +181,8 @@ def generate_histograms(dataframe):
     # Create distplot with curve_type set to 'normal'.
     fig = ff.create_distplot(data, cols, curve_type='normal')  # Override default 'kde'.
 
-    # Add title.
-    fig.update_layout(title_text='Histograms compared to Normal Distributions')
+    # No title in APA 6 style.
+    #fig.update_layout(title_text='Histograms compared to Normal Distributions')
     return fig
 
 
@@ -218,16 +218,23 @@ def generate_table(dataframe, table_id):
         data=dataframe.to_dict('records'),
         columns=[{'name': i, 'id': i} for i in dataframe.columns],
         export_format='csv',
-        filter_action="native",
-        sort_action="native",
-        sort_mode="multi",
-        style_table={'overflowX': 'scroll'},
+        filter_action='native',
+        sort_action='native',
+        sort_mode='multi',
+        style_table={'height': theme['height'], 'marginBottom': '0px'},
+        style_header={'fontStyle': 'italic',
+                      'borderTop': '1px solid black',
+                      'borderBottom': '1px solid black',
+                      'textAlign': 'center'},
+        style_filter={'borderBottom': '1px solid grey'},
         fixed_rows={'headers': True, 'data': 0},
+        style_as_list_view=True,
         style_cell={
             'minWidth': '0px', 'maxWidth': '20px',  # 'width': '20px',
             'whiteSpace': 'normal',  # 'no-wrap',
             'overflow': 'hidden',
             'textOverflow': 'ellipsis',
+            'textAlign': 'center',
         },
         style_cell_conditional=[
             {'if': {'column_id': 'user'},
@@ -235,23 +242,23 @@ def generate_table(dataframe, table_id):
             {'if': {'column_id': 'block'},
              'width': '10%'},
             {'if': {'column_id': 'constraint'},
-             'width': '10%'},
+             'width': '10%'}
+        ],
+        style_data={'border': '0px'},
+        style_data_conditional=[
+            # ToDo: Calculate outlier thresholds.
             {'if': {'column_id': 'df1',
                     'filter_query': '{df1} < 15'},
-             'backgroundColor': 'red',
-             'color': 'white'},
+             'color': 'red'},
             {'if': {'column_id': 'df2',
                     'filter_query': '{df2} < 15'},
-             'backgroundColor': 'red',
-             'color': 'white'},
+             'color': 'red'},
             {'if': {'column_id': 'sum',
                     'filter_query': '{sum} > 150'},
-             'backgroundColor': 'red',
-             'color': 'white'},
+             'color': 'red'},
             {'if': {'column_id': 'sum var',
                     'filter_query': '{sum var} > 150'},
-             'backgroundColor': 'red',
-             'color': 'white'},
+             'color': 'red'},
         ],
         css=[{
             'selector': '.dash-cell div.dash-cell-value',
@@ -309,7 +316,7 @@ def generate_pca_figure(dataframe):
     )
     
     layout = dict(
-        title='Explained variance by different principal components',
+        #title='Explained variance by different principal components',  # Not in APA 6 style.
         yaxis={'title': 'Explained variance in percent'},
         margin={'l': 60, 'b': 40, 't': 40, 'r': 10},
     )
@@ -386,14 +393,24 @@ def generate_pca_table(dataframe):
         data=dataframe.to_dict('records'),
         columns=get_pca_columns_settings(dataframe),
         export_format='csv',
-        style_table={'overflowX': 'scroll'},
+        style_header={'fontStyle': 'italic',
+                      'borderTop': '1px solid black',
+                      'borderBottom': '1px solid black',
+                      'textAlign': 'center'},
         fixed_rows={'headers': True, 'data': 0},
         style_cell={
             'minWidth': '0px', 'maxWidth': '20px',  # 'width': '20px',
             'whiteSpace': 'normal',  # 'no-wrap',
             'overflow': 'hidden',
             'textOverflow': 'ellipsis',
+            'textAlign': 'center',
         },
+        style_data={'border': '0px', 'textAlign': 'center'},
+        # Bottom header border not visible, fake it with upper border of row 0.
+        style_data_conditional=[{
+            "if": {"row_index": 0},
+            'borderTop': '1px solid black'
+        }],
         css=[{
             'selector': '.dash-cell div.dash-cell-value',
             'rule': 'display: inline; white-space: inherit; overflow: inherit; text-overflow: inherit;'
@@ -422,12 +439,13 @@ def generate_variance_figure(dataframe):
     
     fig = go.Figure(
         layout=go.Layout(
-            title=go.layout.Title(
-                text="Sum Variance by Block",
-                xref="paper",
-                xanchor='center',
-                x=0.5,
-            ),
+            # No title in APA 6 style.
+            #title=go.layout.Title(
+            #    text="Sum Variance by Block",
+            #    xref='paper',
+            #    xanchor='center',
+            #    x=0.5,
+            #),
             xaxis={'title': 'Block'},
             yaxis={'title': 'Variance'},
             barmode='group',
@@ -465,10 +483,10 @@ def generate_variance_figure(dataframe):
             name=f"Block {block}",
             hovertext=f'Block {block}',
             hoverinfo='y',
-            textposition="top center",
+            textposition='top center',
             mode='lines',
         ))
-    fig.update_yaxes(hoverformat=".2f")
+    fig.update_yaxes(hoverformat='.2f')
     
     return fig
 
@@ -482,43 +500,65 @@ def create_content():
     df = pd.DataFrame()
     # Create widgets.
     upload_widget = generate_upload_component('upload-data')
-    filter_hint = html.P("You can filter columns by =, !=, <, <=, >=, > for numbers and typing characters or "
-                         "'contains <word>' (without angle brackets) for string columns.",
-                         style={'textAlign': 'justify'})
+    filter_hint = dcc.Markdown("You can filter numerical and string columns by =, !=, <, <=, >=, >. "
+                               "You can also type parts of a string for filtering.",
+                               style={'textAlign': 'justify'})
     trials_graph = html.Div(className='six columns',
-                            style={'verticalAlign': 'top'},
-                            children=[html.Div(className='row',
+                            children=[html.Div(
+                                               style={'display': 'flex',
+                                                      'flex-wrap': 'wrap',
+                                                      'justify-content': 'space-between',
+                                                      'marginBottom': '3rem'
+                                                      },
                                                children=[html.Button(id='refresh-btn',
                                                                      n_clicks=0,
                                                                      children='Refresh from DB'),
-                                                         generate_user_select(df)]),
-                                      dcc.Graph(id='scatterplot-trials'),
-                                      dcc.Checklist(id='pca-checkbox',
-                                                    options=[{'label': 'Show Principal Components', 'value': 'Show'}],
-                                                    value=['Show'])
+                                                         generate_user_select(df),
+                                                         dcc.Checklist(id='pca-checkbox',
+                                                                       options=[{'label': 'Show Principal Components',
+                                                                                 'value': 'Show'}],
+                                                                       value=['Show'],
+                                                                       style={'marginTop': '0.5rem'}),
+                                                         ]),
+                                      html.Div(className='pretty_container',
+                                               children=[dcc.Graph(id='scatterplot-trials',
+                                                                   style={'height': theme['height']})]),
+                                      dcc.Markdown("*Figure 3.* Endpoint values of degrees of freedom 1 and 2, colored "
+                                                   "by block. "
+                                                   "The subspace of task goal 1 is presented as a line. The possible "
+                                                   "goals for the 2 concurrent tasks are represented as larger circles."
+                                                   " Only one of these goals is selected for a constrained block. "
+                                                   "Principle components are displayed as arrows.")
                                       ],
                             )
     trials_table = html.Div(className='six columns',
-                            style={'verticalAlign': 'top'},
                             children=[generate_table(df, 'trials-table'),
+                                      html.P("Table 1"),
+                                      dcc.Markdown("*Endpoint values of slider positions*"),
+                                      dcc.Markdown("*Note:* The goal of task 1 is to match the sum of df1 and df2 "
+                                                   "to be equal to 125. Outliers are colored in red."),
                                       filter_hint,
                                       ])
-    hist_graph = dcc.Graph(id='histogram-dfs')
-    pca_graph = dcc.Graph(id='barplot-pca')
-    pca_table = html.Div(children=
-                         [html.H3("Divergence between principal components and UCM parallel/orthogonal space",
-                                  style={'textAlign': 'center'}),
-                          html.Div(id='pca-table-container',
-                                   className='six columns',
-                                   style={'verticalAlign': 'top'}),
-                          ])
-    var_graph = dcc.Graph(id='barplot-variance')
+    hist_graph = html.Div(children=[html.Div([dcc.Graph(id='histogram-dfs')], className='pretty_container'),
+                                    dcc.Markdown("*Figure 4.*  Histograms compared to normal distributions.")])
+    pca_graph = html.Div(children=[html.Div([dcc.Graph(id='barplot-pca')], className='pretty_container'),
+                                   dcc.Markdown("*Figure 5.* Explained variance by different principal components "
+                                                "in percent.")])
+    pca_table = html.Div(className='six columns',
+                         children=[html.Div(id='pca-table-container'),
+                                   html.Div("Table 2"),
+                                   dcc.Markdown("*Divergence between principal components "
+                                                "and UCM parallel/orthogonal space*"),
+                                   ])
+    var_graph = html.Div(children=[html.Div([dcc.Graph(id='barplot-variance')], className='pretty_container'),
+                                   dcc.Markdown("*Figure 6.* Variance of the sum of df1 and df2 grouped by block "
+                                                "and participant.")])
     var_table = html.Div(className='six columns',
-                         style={'verticalAlign': 'top'},
-                         children=
-                         [generate_table(df, 'variance-table'),
-                         filter_hint,
-                          ])
+                         children=[generate_table(df, 'variance-table'),
+                                   html.P("Table 3"),
+                                   dcc.Markdown("*Means and variances of df1, df2 and their sum*"),
+                                   filter_hint,
+                                   ])
     
     # Tie widgets together to layout.
     content = html.Div([
@@ -531,16 +571,16 @@ def create_content():
                  style={'paddingTop': '20px', 'display': 'none'}),
         html.Div(id='output-data-upload'),
         
-        html.Div([
-            html.H2("Degrees of Freedom Endpoint Variance", style={'textAlign': 'center', 'marginTop': '5rem'}),
-            # html.H3("Across participants and blocks."),
-            html.Div(className='row', style={'textAlign': 'center'},
+        # Figures and Tables.
+        html.Div(style={'textAlign': 'left'},
+                 children=[
+            html.Div(className='row',
                      children=[
                          trials_graph,
                          trials_table,
                      ]),
             html.Hr(),  # horizontal line
-            html.Div(className='row', style={'textAlign': 'center'},
+            html.Div(className='row',
                      children=[
                          hist_graph,
                      ]),
@@ -548,18 +588,17 @@ def create_content():
             html.Div(className='row',
                      children=[
                          html.Div(pca_graph,
-                                  className='six columns',
-                                  style={'verticalAlign': 'top'}),
+                                  className='six columns'),
                          pca_table
-                         ]),
+                     ]),
             html.Hr(),  # horizontal line
             html.Div(className='row',
                      children=[
                          html.Div(var_graph,
                                   className='six columns',
-                                  style={'verticalAlign': 'top', 'marginTop': '70px'}),
+                                  style={'marginTop': '70px'}),
                          var_table
-                         ]),
+                     ]),
         ]),
         html.Hr(),  # horizontal line
     ])
@@ -569,25 +608,25 @@ def create_content():
 
 def create_footer():
     """ A footer for the dashboard. """
-    footer_style = {"background-color": theme["background-color"], "padding": "0.5rem"}
+    footer_style = {'background-color': theme['background-color'], 'padding': '0.5rem'}
     p0 = html.P(
         children=[
             html.Span("Built with "),
             html.A(
-                "Plotly Dash", href="https://github.com/plotly/dash", target="_blank"
+                "Plotly Dash", href='https://github.com/plotly/dash', target='_blank'
             ),
         ]
     )
     p1 = html.P(
         children=[
             html.Span("Soure Code on "),
-            html.A("Github", href="https://github.com/OlafHaag/UCM-WebApp/", target="_blank"),
+            html.A("Github", href='https://github.com/OlafHaag/UCM-WebApp/', target='_blank'),
         ]
     )
     p2 = html.P(
         children=[
             html.Span("Data acquired with "),
-            html.A("UCMResearchApp", href="https://github.com/OlafHaag/UCMResearchApp", target="_blank"),
+            html.A("UCMResearchApp", href='https://github.com/OlafHaag/UCMResearchApp', target='_blank'),
         ]
     )
     
@@ -600,8 +639,8 @@ def serve_layout():
     """ Pack dash components into a Div with id dash-container. """
     layout = html.Div(
         children=[create_header(), create_content(), create_footer()],
-        className="container",
-        style={"font-family": theme["font-family"]},
+        className='container',
+        style={'font-family': theme['font-family']},
         id='dash-container'
     )
     return layout

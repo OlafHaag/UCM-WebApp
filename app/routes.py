@@ -15,9 +15,12 @@ js_bundle = Bundle('js/*.js',
                    filters='jsmin',
                    output='dist/js/main.js')
 assets.register('less_all', less_bundle)
+# ToDo: Merge minified files together with uncompressed ones (jquery.min.js)?
+#       Docs suggest assets.register('js_all', 'jquery.min.js', js_bundle), but doesn't work.
 assets.register('js_all', js_bundle)
 
-# ToDo: bundle dashapp.less separately?
+# ToDo: bundle dashapp1.less separately? So it's not loaded when not needed, i.e. on other pages.
+#       Maybe use assets.append_path?
 
 if app.config['FLASK_ENV'] == 'development':
     # Convert static/less/*.less files into static/dist/styles.css

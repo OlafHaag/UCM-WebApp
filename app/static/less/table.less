@@ -1,6 +1,6 @@
 body,
 html {
-  font-family: 'Lato';
+  font-family: 'Lato', serif;
   background: #e7ecf7 !important;
   padding: 0;
   height: 100% !important;
@@ -51,15 +51,23 @@ nav {
 }
 
 .dash-spreadsheet-container {
-  margin: 30px auto !important;
+  margin: 30px 30px 0px auto !important;
+  padding: 5px;
+  border-radius: 5px;
   overflow: hidden;
   box-shadow: 0 0 5px #bcceef;
   font-family: 'Lato', sans-serif;
   max-width: 99%;
+  background: white;
+
+  table {
+    --accent: #0fa0ce !important;
+    --selected-background: #1d8ba5 !important;
+    --selected-color: white !important;
+  }
 
   * {
-    font-family: Lato;
-    box-shadow: none !important;
+    font-family: Lato, serif;
   }
 
   th,
@@ -69,15 +77,17 @@ nav {
   }
 
   th {
-    background: #4ab3bf !important;
-    color: white;
+    background: white !important;
+    color: black;
     padding: 8px 10px !important;
-    border-right: 1px solid #7eccd4 !important;
+    border-right: 1px hidden black !important;
 
     .sort {
-      color: #2b4249 !important;
+      color: black !important;
       transition: all .3s ease-out;
       order: 2;
+      /* padding-left: 2em !important; */
+      float: right !important;  /* not working */
 
       &:hover {
         cursor: pointer;
@@ -90,25 +100,27 @@ nav {
       display: flex;
       align-items: center;
       width: 100%;
-      justify-content: space-between;
+      justify-content: center;
+      flex-direction: row-reverse;
 
 
       span:last-of-type {
         font-size: 12px;
+        flex-basis: 3em;
       }
     }
   }
 
   td {
     padding: 15px 10px !important;
-    text-align: left !important;
+    /* text-align: center !important; */
 
     .dash-cell-value {
       display: inline !important;
       text-overflow: ellipsis;
       white-space: nowrap;
       max-width: 172px;
-      text-align: left;
+      /*text-align: center; */
       font-size: 1em;
       overflow: hidden;
     }
@@ -122,15 +134,15 @@ nav {
 table {
   thead {
     tr {
-      background: #646483 !important;
-      color: white !important;
+      background: white !important;
+      color: black !important;
       font-weight: 100 !important;
       text-transform: uppercase !important;
       font-size: 0.8em !important;
 
       th {
         border-radius: 0 !important;
-        text-align: center !important;
+        /* text-align: center !important; */
         line-height: 1.2 !important;
         padding: 10px 5px !important;
       }
@@ -138,7 +150,7 @@ table {
   }
 
   tbody {
-    box-shadow: 0 0 7px #bdbdd2 !important;
+    box-shadow: 0 1px 0px #bdbdd2 !important;
 
     tr {
       border: 0 !important;
@@ -154,7 +166,7 @@ table {
         font-size: 0.73em !important;
         line-height: 1.25 !important;
         border-radius: 0 !important;
-        text-align: center !important;
+        /* text-align: center !important; */
       }
     }
   }
