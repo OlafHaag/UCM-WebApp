@@ -688,20 +688,21 @@ def register_callbacks(dashapp):
             fig.layout.update(annotations=arrows)
         return fig
 
-    @dashapp.callback(Output('histogram-dfs', 'figure'),
+    @dashapp.callback([Output('histogram-dfs', 'figure'),
+                       Output('histogram-sum', 'figure')],
                       [Input('trials-table', 'derived_virtual_data')],
                       [State('datastore', 'data')])
-    def on_table_set_histogram(table_data, stored_data):
+    def on_table_set_histograms(table_data, stored_data):
         if not table_data:
             try:
                 columns = stored_data[0].keys()
                 df = pd.DataFrame(None, columns=columns)
-                return generate_histograms(df)
+                return generate_histograms(df[['df1', 'df2']]), generate_histograms(df[['sum']])
             except (TypeError, IndexError):
-                return dash.no_update
-        df = pd.DataFrame(table_data)
+                return [dash.no_update]*2
 
-        fig = generate_histograms(df)
+        df = pd.DataFrame(table_data)
+        fig = generate_histograms(df[['df1', 'df2']]), generate_histograms(df[['sum']])
         return fig
         
     @dashapp.callback([Output('variance-table', 'data'),

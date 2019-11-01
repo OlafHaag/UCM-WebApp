@@ -41,9 +41,13 @@ html_layout = f'''<!DOCTYPE html>
                         </body>
                     </html>'''
 
-# ToDo: Move style setttings to less bundle.
+# ToDo: Move style setttings to less.
 # Body
-theme = {'font-family': 'Lobster', 'background-color': '#e7ecf7', 'height': '60vh'}
+theme = {'font-family': 'Lobster',
+         'background-color': '#e7ecf7',
+         'height': '60vh',
+         'graph_margins': {'l': 40, 'b': 40, 't': 40, 'r': 10},
+         }
 
 
 def create_header():
@@ -140,7 +144,7 @@ def generate_trials_figure(df):
             #),
             xaxis={'title': 'Degree of Freedom 1'},
             yaxis={'title': 'Degree of Freedom 2', 'scaleanchor': 'x', 'scaleratio': 1},
-            margin={'l': 40, 'b': 40, 't': 40, 'r': 10},
+            margin=theme['graph_margins'],
             legend=legend,
             hovermode='closest',
         )
@@ -175,14 +179,19 @@ def generate_histograms(dataframe):
     :param dataframe: Data of df1, df2 and their sum.
     :type dataframe: pandas.DataFrame
     """
+    legend = go.layout.Legend(
+        xanchor='right',
+        yanchor='top',
+        orientation='v',
+    )
+    
     # Columns we want to plot histograms for. Display order is reversed.
-    cols = ['sum', 'df2', 'df1']
+    cols = list(dataframe.columns)
+    cols.reverse()
     data = [dataframe[c] for c in cols]
     # Create distplot with curve_type set to 'normal'.
     fig = ff.create_distplot(data, cols, curve_type='normal')  # Override default 'kde'.
-
-    # No title in APA 6 style.
-    #fig.update_layout(title_text='Histograms compared to Normal Distributions')
+    fig.update_layout(legend=legend, margin=theme['graph_margins'])
     return fig
 
 
@@ -451,7 +460,7 @@ def generate_variance_figure(dataframe):
             barmode='group',
             bargap=0.15,  # Gap between bars of adjacent location coordinates.
             bargroupgap=0.1,  # Gap between bars of the same location coordinate.
-            margin={'l': 40, 'b': 40, 't': 40, 'r': 10},
+            margin=theme['graph_margins'],
             showlegend=True,
             legend=legend,
             annotations=list([
@@ -539,19 +548,26 @@ def create_content():
                                                    "to be equal to 125. Outliers are colored in red."),
                                       filter_hint,
                                       ])
-    hist_graph = html.Div(children=[html.Div([dcc.Graph(id='histogram-dfs')], className='pretty_container'),
-                                    dcc.Markdown("*Figure 4.*  Histograms compared to normal distributions.")])
+    hist_graph_dfs = html.Div(className='six columns',
+                              children=[html.Div([dcc.Graph(id='histogram-dfs')], className='pretty_container'),
+                                        dcc.Markdown("*Figure 4.*  Histograms of endpoint values for df1 and df2 "
+                                                     "compared to normal distributions.")])
+    hist_graph_sum = html.Div(className='six columns',
+                              children=[html.Div([dcc.Graph(id='histogram-sum')], className='pretty_container'),
+                                        dcc.Markdown("*Figure 5.*  Histogram of the sum of df1 and df2 "
+                                                     "compared to a normal distribution.")])
+    # ToDo: histogram of residuals
     pca_graph = html.Div(children=[html.Div([dcc.Graph(id='barplot-pca')], className='pretty_container'),
-                                   dcc.Markdown("*Figure 5.* Explained variance by different principal components "
+                                   dcc.Markdown("*Figure 6.* Explained variance by different principal components "
                                                 "in percent.")])
     pca_table = html.Div(className='six columns',
                          children=[html.Div(id='pca-table-container'),
                                    html.Div("Table 2"),
                                    dcc.Markdown("*Divergence between principal components "
-                                                "and UCM parallel/orthogonal space*"),
+                                                "and the space parallel or orthogonal to the theoretical UCM*"),
                                    ])
     var_graph = html.Div(children=[html.Div([dcc.Graph(id='barplot-variance')], className='pretty_container'),
-                                   dcc.Markdown("*Figure 6.* Variance of the sum of df1 and df2 grouped by block "
+                                   dcc.Markdown("*Figure 7.* Variance of the sum of df1 and df2 grouped by block "
                                                 "and participant.")])
     var_table = html.Div(className='six columns',
                          children=[generate_table(df, 'variance-table'),
@@ -582,7 +598,8 @@ def create_content():
             html.Hr(),  # horizontal line
             html.Div(className='row',
                      children=[
-                         hist_graph,
+                         hist_graph_dfs,
+                         hist_graph_sum,
                      ]),
             html.Hr(),  # horizontal line
             html.Div(className='row',
