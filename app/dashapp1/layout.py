@@ -251,22 +251,13 @@ def generate_table(dataframe, table_id):
             {'if': {'column_id': 'block'},
              'width': '10%'},
             {'if': {'column_id': 'constraint'},
-             'width': '10%'}
+             'width': '10%'},
+            #{'if': {'column_id': 'outlier'},
+            # 'display': 'none'}
         ],
         style_data={'border': '0px'},
         style_data_conditional=[
-            # ToDo: Calculate outlier thresholds.
-            {'if': {'column_id': 'df1',
-                    'filter_query': '{df1} < 15'},
-             'color': 'red'},
-            {'if': {'column_id': 'df2',
-                    'filter_query': '{df2} < 15'},
-             'color': 'red'},
-            {'if': {'column_id': 'sum',
-                    'filter_query': '{sum} > 150'},
-             'color': 'red'},
-            {'if': {'column_id': 'sum var',
-                    'filter_query': '{sum var} > 150'},
+            {'if': {'filter_query': '{outlier} = 1'},
              'color': 'red'},
         ],
         css=[{
@@ -545,7 +536,8 @@ def create_content():
                                       html.P("Table 1"),
                                       dcc.Markdown("*Endpoint values of slider positions*"),
                                       dcc.Markdown("*Note:* The goal of task 1 is to match the sum of df1 and df2 "
-                                                   "to be equal to 125. Outliers are colored in red."),
+                                                   "to be equal to 125. Outliers are identified using the robust "
+                                                   "covariance method and are colored in red."),
                                       filter_hint,
                                       ])
     hist_graph_dfs = html.Div(className='six columns',
@@ -575,6 +567,7 @@ def create_content():
                                    dcc.Markdown("*Means and variances of df1, df2 and their sum*"),
                                    filter_hint,
                                    ])
+    # ToDo: table of projection mean and variance.
     
     # Tie widgets together to layout.
     content = html.Div([

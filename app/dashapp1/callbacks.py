@@ -21,7 +21,7 @@ from psycopg2.extensions import register_adapter, AsIs
 from app.extensions import db
 from app.models import Device, User, CTSession, CircleTask
 from .exceptions import UploadError, ModelCreationError
-from .analysis import get_data, get_descriptive_stats, get_pca_data, get_ucm_vec, get_pc_ucm_angles
+from .analysis import get_data, get_descriptive_stats, get_pca_data, get_ucm_vec, get_pc_ucm_angles, get_outlyingness
 from .layout import (generate_trials_figure,
                      generate_histograms,
                      generate_variance_figure,
@@ -627,6 +627,8 @@ def register_callbacks(dashapp):
             raise PreventUpdate
 
         df = pd.DataFrame(stored_data)
+        outliers = get_outlyingness(df[['df1', 'df2']].values)
+        df['outlier'] = outliers.astype(int)
         # Format table columns.
         columns = get_columns_settings(df)
 
@@ -634,7 +636,7 @@ def register_callbacks(dashapp):
             # Return all the rows on initial load/no user selected.
             return df.to_dict('records'), columns
         
-        df[['user', 'block', 'constraint']] = df[['user', 'block', 'constraint']].astype('category')
+        df[['user', 'block', 'constraint', 'outlier']] = df[['user', 'block', 'constraint', 'outlier']].astype('category')
         filtered = df.query('`user` in @users_selected')
         return filtered.to_dict('records'), columns
 

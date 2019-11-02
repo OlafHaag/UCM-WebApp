@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from sklearn.decomposition import PCA
+from sklearn.covariance import EllipticEnvelope
 
 from app.extensions import db
 
@@ -232,5 +233,12 @@ def get_stats(data):
     return stats
 
 
+def get_outlyingness(data):
+    robust_cov = EllipticEnvelope(contamination=0.15)
+    outlyingness = robust_cov.fit_predict(data)
+    decision = (outlyingness-1).astype(bool)
+    return decision
+    
+    
 # ToDo: Correlation matrix. Note, that there is a reciprocal suppression: r(sum,df1) > 0, r(sum, df2)>0, r(df1,df2)<0
-# ToDo: normal distributions of variables?
+# ToDo: distribution of residuals.
