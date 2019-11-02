@@ -234,7 +234,7 @@ def get_stats(data):
 
 
 def get_outlyingness(data):
-    robust_cov = EllipticEnvelope(contamination=0.15)
+    robust_cov = EllipticEnvelope(contamination=0.05)
     outlyingness = robust_cov.fit_predict(data)
     decision = (outlyingness-1).astype(bool)
     return decision
