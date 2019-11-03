@@ -622,14 +622,17 @@ def register_callbacks(dashapp):
                        Output('trials-table', 'columns'),
                        Output('contour-store', 'data')],
                       [Input('datastore', 'data'),
-                       Input('user-IDs', 'value')])
-    def set_table(stored_data, users_selected):
+                       Input('user-IDs', 'value'),
+                       Input('contamination', 'value')])
+    def set_table(stored_data, users_selected, contamination):
         if not stored_data:
             raise PreventUpdate
 
         df = pd.DataFrame(stored_data)
         # Get oultier data.
-        outliers, z = get_outlyingness(df[['df1', 'df2']].values)
+        if not contamination:
+            contamination = 0.1
+        outliers, z = get_outlyingness(df[['df1', 'df2']].values, contamination=contamination)
         df['outlier'] = outliers.astype(int)
         # Format table columns.
         columns = get_columns_settings(df)
@@ -675,7 +678,7 @@ def register_callbacks(dashapp):
                       [State('trials-table', 'derived_virtual_data'),
                        State('datastore', 'data'),
                        State('contour-store', 'data')])
-    def on_table_set_trial_graph(pca_data, show_pca, table_data, stored_data, contour):
+    def on_pca_set_trial_graph(pca_data, show_pca, table_data, stored_data, contour):
         if not table_data:
             try:
                 columns = stored_data[0].keys()
@@ -694,7 +697,7 @@ def register_callbacks(dashapp):
             arrows = get_pca_annotations(pca_df)
             fig.layout.update(annotations=arrows)
         return fig
-
+    
     @dashapp.callback([Output('histogram-dfs', 'figure'),
                        Output('histogram-sum', 'figure')],
                       [Input('trials-table', 'derived_virtual_data')],
