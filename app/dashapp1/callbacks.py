@@ -619,7 +619,8 @@ def register_callbacks(dashapp):
         return df.to_dict('records'), users
     
     @dashapp.callback([Output('trials-table', 'data'),
-                       Output('trials-table', 'columns')],
+                       Output('trials-table', 'columns'),
+                       Output('contour-store', 'data')],
                       [Input('datastore', 'data'),
                        Input('user-IDs', 'value')])
     def set_table(stored_data, users_selected):
@@ -627,18 +628,19 @@ def register_callbacks(dashapp):
             raise PreventUpdate
 
         df = pd.DataFrame(stored_data)
-        outliers = get_outlyingness(df[['df1', 'df2']].values)
+        # Get oultier data.
+        outliers, z = get_outlyingness(df[['df1', 'df2']].values)
         df['outlier'] = outliers.astype(int)
         # Format table columns.
         columns = get_columns_settings(df)
 
         if not users_selected:
             # Return all the rows on initial load/no user selected.
-            return df.to_dict('records'), columns
+            return df.to_dict('records'), columns, z.tolist()
         
         df[['user', 'block', 'constraint', 'outlier']] = df[['user', 'block', 'constraint', 'outlier']].astype('category')
         filtered = df.query('`user` in @users_selected')
-        return filtered.to_dict('records'), columns
+        return filtered.to_dict('records'), columns, z.tolist()
 
     @dashapp.callback(Output('pca-store', 'data'),
                       [Input('trials-table', 'derived_virtual_data')])
@@ -671,8 +673,9 @@ def register_callbacks(dashapp):
                       [Input('pca-store', 'data'),  # Delay update until PCA is through.
                        Input('pca-checkbox', 'value')],
                       [State('trials-table', 'derived_virtual_data'),
-                       State('datastore', 'data')])
-    def on_table_set_trial_graph(pca_data, show_pca, table_data, stored_data):
+                       State('datastore', 'data'),
+                       State('contour-store', 'data')])
+    def on_table_set_trial_graph(pca_data, show_pca, table_data, stored_data, contour):
         if not table_data:
             try:
                 columns = stored_data[0].keys()
@@ -682,8 +685,10 @@ def register_callbacks(dashapp):
                 return dash.no_update
             
         df = pd.DataFrame(table_data)
-        fig = generate_trials_figure(df)
+        z = np.array(contour)
+        fig = generate_trials_figure(df, contour_data=z)
         
+        # PCA visualisation.
         if 'Show' in show_pca:
             pca_df = pd.DataFrame(pca_data)
             arrows = get_pca_annotations(pca_df)

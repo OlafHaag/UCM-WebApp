@@ -8,6 +8,7 @@ from dash_table.Format import Format, Scheme, Symbol
 import plotly.graph_objs as go
 import plotly.figure_factory as ff
 import pandas as pd
+import numpy as np
 
 from .analysis import get_mean_x_by, get_pca_vectors
 
@@ -102,11 +103,13 @@ def generate_user_select(dataframe):
     return user_select
 
 
-def generate_trials_figure(df):
+def generate_trials_figure(df, contour_data=None):
     """ Scatter plot of data.
     
     :param df: Data
     :type df: pandas.DataFrame
+    :param contour_data: outlier visualisation data.
+    :type: numpy.ndarray
     :rtype: plotly.graph_objs.figure
     """
     if df.empty:
@@ -135,13 +138,6 @@ def generate_trials_figure(df):
     fig = go.Figure(
         data=data,
         layout=go.Layout(
-            # APA 6 style doesn't have titles above figures.
-            #title=go.layout.Title(
-            #    text='Trial Endpoints',
-            #    xref='paper',
-            #    xanchor='center',
-            #    x=0.5,
-            #),
             xaxis={'title': 'Degree of Freedom 1'},
             yaxis={'title': 'Degree of Freedom 2', 'scaleanchor': 'x', 'scaleratio': 1},
             margin=theme['graph_margins'],
@@ -166,7 +162,22 @@ def generate_trials_figure(df):
                     mode='markers',
                     opacity=0.7,
                     marker={'size': 25})
-    
+
+    # Add visualisation for outlier detection.
+    if isinstance(contour_data, np.ndarray):
+        fig.add_trace(go.Contour(z=contour_data,
+                                 name='outlier threshold',
+                                 line_color='black',
+                                 contours_type='constraint',
+                                 contours_operation='=',
+                                 contours_value=-1,
+                                 line_width=1,
+                                 opacity=0.25,
+                                 showscale=False,
+                                 showlegend=True,
+                                 hoverinfo='skip',
+                                 ))
+
     fig.update_xaxes(hoverformat='.2f')
     fig.update_yaxes(hoverformat='.2f')
 
@@ -316,7 +327,6 @@ def generate_pca_figure(dataframe):
     )
     
     layout = dict(
-        #title='Explained variance by different principal components',  # Not in APA 6 style.
         yaxis={'title': 'Explained variance in percent'},
         margin={'l': 60, 'b': 40, 't': 40, 'r': 10},
     )
@@ -439,13 +449,6 @@ def generate_variance_figure(dataframe):
     
     fig = go.Figure(
         layout=go.Layout(
-            # No title in APA 6 style.
-            #title=go.layout.Title(
-            #    text="Sum Variance by Block",
-            #    xref='paper',
-            #    xanchor='center',
-            #    x=0.5,
-            #),
             xaxis={'title': 'Block'},
             yaxis={'title': 'Variance'},
             barmode='group',
@@ -525,10 +528,12 @@ def create_content():
                                                                    style={'height': theme['height']})]),
                                       dcc.Markdown("*Figure 3.* Endpoint values of degrees of freedom 1 and 2, colored "
                                                    "by block. "
-                                                   "The subspace of task goal 1 is presented as a line. The possible "
-                                                   "goals for the 2 concurrent tasks are represented as larger circles."
+                                                   "The subspace of task goal 1 is presented as a line. The 2 possible "
+                                                   "goals for the concurrent tasks are represented as larger discs."
                                                    " Only one of these goals is selected for a constrained block. "
-                                                   "Principle components are displayed as arrows.")
+                                                   "Principle components are displayed as arrows."
+                                                   "A threshold for outliers calculated using the robust covariance"
+                                                   " method is drawn as a thin black line.")
                                       ],
                             )
     trials_table = html.Div(className='six columns',
@@ -568,10 +573,12 @@ def create_content():
                                    filter_hint,
                                    ])
     # ToDo: table of projection mean and variance.
+    # ToDo: Hint that you can hide/show items by clicking/dbl-clicking the legend.
     
     # Tie widgets together to layout.
     content = html.Div([
         dcc.Store(id='datastore', storage_type='memory'),
+        dcc.Store(id='contour-store', storage_type='memory'),
         dcc.Store(id='pca-store', storage_type='memory'),
         
         html.Div(id='div-data-upload',

@@ -234,10 +234,17 @@ def get_stats(data):
 
 
 def get_outlyingness(data):
-    robust_cov = EllipticEnvelope(contamination=0.05)
+    robust_cov = EllipticEnvelope(support_fraction=1., contamination=0.15)
     outlyingness = robust_cov.fit_predict(data)
     decision = (outlyingness-1).astype(bool)
-    return decision
+    
+    # Visualisation.
+    xx, yy = np.meshgrid(np.linspace(0, 100, 101),
+                         np.linspace(0, 100, 101))
+    z = robust_cov.predict(np.c_[xx.ravel(), yy.ravel()])
+    z = z.reshape(xx.shape)
+    
+    return decision, z
     
     
 # ToDo: Correlation matrix. Note, that there is a reciprocal suppression: r(sum,df1) > 0, r(sum, df2)>0, r(df1,df2)<0
