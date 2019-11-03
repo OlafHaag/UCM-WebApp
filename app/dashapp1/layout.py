@@ -202,7 +202,7 @@ def generate_histograms(dataframe):
     data = [dataframe[c] for c in cols]
     # Create distplot with curve_type set to 'normal'.
     fig = ff.create_distplot(data, cols, curve_type='normal')  # Override default 'kde'.
-    fig.update_layout(legend=legend, margin=theme['graph_margins'])
+    fig.layout.update(legend=legend, margin=theme['graph_margins'])
     return fig
 
 
