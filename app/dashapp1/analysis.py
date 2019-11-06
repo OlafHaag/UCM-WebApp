@@ -196,6 +196,20 @@ def get_pc_ucm_angles(dataframe, vec_ucm):
     return df_angles
 
 
+def get_outlyingness(data, contamination=0.1):
+    robust_cov = EllipticEnvelope(support_fraction=1., contamination=contamination)
+    outlyingness = robust_cov.fit_predict(data)
+    decision = (outlyingness-1).astype(bool)
+    
+    # Visualisation.
+    xx, yy = np.meshgrid(np.linspace(0, 100, 101),
+                         np.linspace(0, 100, 101))
+    z = robust_cov.predict(np.c_[xx.ravel(), yy.ravel()])
+    z = z.reshape(xx.shape)
+    
+    return decision, z
+
+
 def get_projections(points, vec_ucm):
     """ Returns coefficients a and b in x = a*vec_ucm + b*vec_ortho with x being the difference of a data point and
     the mean.
@@ -216,7 +230,7 @@ def get_projections(points, vec_ucm):
     diffs = points - points.mean()
     # For computational efficiency we shortcut the calculation with matrix multiplication.
     coeffs = diffs@A
-    coeffs.columns = ['a', 'b']
+    coeffs.columns = ['parallel', 'orthogonal']
     return coeffs
 
 
@@ -231,20 +245,6 @@ def get_stats(data):
     stats = data.agg(['mean', 'var', 'count']).T
     stats['count'] = stats['count'].astype(int)
     return stats
-
-
-def get_outlyingness(data, contamination=0.1):
-    robust_cov = EllipticEnvelope(support_fraction=1., contamination=contamination)
-    outlyingness = robust_cov.fit_predict(data)
-    decision = (outlyingness-1).astype(bool)
-    
-    # Visualisation.
-    xx, yy = np.meshgrid(np.linspace(0, 100, 101),
-                         np.linspace(0, 100, 101))
-    z = robust_cov.predict(np.c_[xx.ravel(), yy.ravel()])
-    z = z.reshape(xx.shape)
-    
-    return decision, z
     
     
 # ToDo: Correlation matrix. Note, that there is a reciprocal suppression: r(sum,df1) > 0, r(sum, df2)>0, r(df1,df2)<0

@@ -171,6 +171,7 @@ def generate_trials_figure(df, contour_data=None):
                                  contours_type='constraint',
                                  contours_operation='=',
                                  contours_value=-1,
+                                 contours_showlines=False,
                                  line_width=1,
                                  opacity=0.25,
                                  showscale=False,
@@ -271,6 +272,43 @@ def generate_table(dataframe, table_id):
             {'if': {'filter_query': '{outlier} = 1'},
              'color': 'red'},
         ],
+        css=[{
+            'selector': '.dash-cell div.dash-cell-value',
+            'rule': 'display: inline; white-space: inherit; overflow: inherit; text-overflow: inherit;'
+        }],
+    )
+    return table
+
+
+def generate_simple_table(dataframe):
+    """ Create a table just showing the data.
+        No sorting or filterring.
+
+    :param dataframe: data to be displayed.
+    :return: DataTable
+    """
+    
+    table = dash_table.DataTable(
+        data=dataframe.to_dict('records'),
+        columns=get_columns_settings(dataframe),
+        export_format='csv',
+        style_header={'fontStyle': 'italic',
+                      'borderTop': '1px solid black',
+                      'borderBottom': '1px solid black',
+                      'textAlign': 'center'},
+        style_cell={
+            'minWidth': '0px', 'maxWidth': '20px',  # 'width': '20px',
+            'whiteSpace': 'normal',  # 'no-wrap',
+            'overflow': 'hidden',
+            'textOverflow': 'ellipsis',
+            'textAlign': 'center',
+        },
+        style_data={'border': '0px', 'textAlign': 'center'},
+        # Bottom header border not visible, fake it with upper border of row 0.
+        style_data_conditional=[{
+            "if": {"row_index": 0},
+            'borderTop': '1px solid black'
+        }],
         css=[{
             'selector': '.dash-cell div.dash-cell-value',
             'rule': 'display: inline; white-space: inherit; overflow: inherit; text-overflow: inherit;'
@@ -503,17 +541,19 @@ def create_content():
     df = pd.DataFrame()
     # Create widgets.
     upload_widget = generate_upload_component('upload-data')
-    filter_hint = dcc.Markdown("You can filter numerical and string columns by =, !=, <, <=, >=, >. "
-                               "You can also type parts of a string for filtering.",
-                               style={'textAlign': 'justify'})
+    filter_hint = "You can filter numerical and string columns by =, !=, <, <=, >=, >. " \
+                  "You can also type parts of a string for filtering."
+    # ToDo: Hint that you can hide/show items by clicking/dbl-clicking the legend.
+
     trials_graph = html.Div(className='six columns',
                             children=[html.Button(id='refresh-btn',
                                                   n_clicks=0,
                                                   children='Refresh from DB',
                                                   style={'marginBottom': '3rem'}),
                                       html.Div(className='pretty_container',
-                                               children=[dcc.Graph(id='scatterplot-trials',
-                                                                   style={'height': theme['height']})]),
+                                               children=[
+                                                   dcc.Graph(id='scatterplot-trials', style={'height': theme['height']})
+                                                         ]),
                                       html.Div(style={'display': 'flex',
                                                       'flex-wrap': 'wrap',
                                                       'justify-content': 'space-between',
@@ -548,7 +588,7 @@ def create_content():
                                                    "The subspace of task goal 1 is presented as a line. The 2 possible "
                                                    "goals for the concurrent tasks are represented as larger discs."
                                                    " Only one of these goals is selected for a constrained block. "
-                                                   "Principle components are displayed as arrows."
+                                                   "Principle components are displayed as arrows. "
                                                    "A threshold for outliers calculated using the robust covariance"
                                                    " method is drawn as a thin black line.")
                                       ],
@@ -559,8 +599,7 @@ def create_content():
                                       dcc.Markdown("*Endpoint values of slider positions*"),
                                       dcc.Markdown("*Note:* The goal of task 1 is to match the sum of df1 and df2 "
                                                    "to be equal to 125. Outliers are identified using the robust "
-                                                   "covariance method and are colored in red."),
-                                      filter_hint,
+                                                   "covariance method and are colored in red.  \n" + filter_hint),
                                       ])
     hist_graph_dfs = html.Div(className='six columns',
                               children=[html.Div([dcc.Graph(id='histogram-dfs')], className='pretty_container'),
@@ -576,7 +615,7 @@ def create_content():
                                                 "in percent.")])
     pca_table = html.Div(className='six columns',
                          children=[html.Div(id='pca-table-container'),
-                                   html.Div("Table 2"),
+                                   html.P("Table 2"),
                                    dcc.Markdown("*Divergence between principal components "
                                                 "and the space parallel or orthogonal to the theoretical UCM*"),
                                    ])
@@ -587,10 +626,29 @@ def create_content():
                          children=[generate_table(df, 'variance-table'),
                                    html.P("Table 3"),
                                    dcc.Markdown("*Means and variances of df1, df2 and their sum*"),
-                                   filter_hint,
+                                   dcc.Markdown(filter_hint),
                                    ])
-    # ToDo: table of projection mean and variance.
-    # ToDo: Hint that you can hide/show items by clicking/dbl-clicking the legend.
+    # ToDo: table of projection lengths' mean and variance.
+    proj_table = html.Div(className='six columns',
+                          children=[html.Div(id='proj-table-container'),
+                                    html.P("Table 4"),
+                                    dcc.Markdown("*Mean and variance of projection's lengths*"),
+                                    # Following text contains math formulas.
+                                    # Keep the math sections short, as they do not wrap when resizing.
+                                    html.Span([html.I("Note: "),
+                                               html.Span("The lengths are the absolute values of coefficients "),
+                                               html.Span(["a \mtext{ and } b \mtext{ in }"], className='tex'),
+                                               html.Span(["x-\overline{x} = aV_{\parallel UCM} + bV_{\\bot UCM}"],
+                                                         className='tex'),
+                                               html.Span(["\mtext{ with } x "], className='tex'),
+                                               html.Span([" being a data point and "]),
+                                               html.Span(["\overline{x}"], className='tex'),
+                                               html.Span([" being the mean. Vectors "]),
+                                               html.Span(["V_{\parallel UCM} \mtext{ and } V_{\\bot UCM}"],
+                                                         className='tex'),
+                                               html.Span(" are both of length 1."),
+                                               ]),
+                                    ])
     
     # Tie widgets together to layout.
     content = html.Div([
@@ -632,6 +690,11 @@ def create_content():
                                   className='six columns',
                                   style={'marginTop': '70px'}),
                          var_table
+                     ]),
+        html.Hr(),  # horizontal line
+            html.Div(className='row',
+                     children=[
+                         proj_table,
                      ]),
         ]),
         html.Hr(),  # horizontal line

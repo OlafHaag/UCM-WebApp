@@ -21,8 +21,16 @@ from psycopg2.extensions import register_adapter, AsIs
 from app.extensions import db
 from app.models import Device, User, CTSession, CircleTask
 from .exceptions import UploadError, ModelCreationError
-from .analysis import get_data, get_descriptive_stats, get_pca_data, get_ucm_vec, get_pc_ucm_angles, get_outlyingness
-from .layout import (generate_trials_figure,
+from .analysis import (get_data,
+                       get_descriptive_stats,
+                       get_pca_data,
+                       get_ucm_vec,
+                       get_pc_ucm_angles,
+                       get_outlyingness,
+                       get_projections,
+                       get_stats)
+from .layout import (generate_simple_table,
+                     generate_trials_figure,
                      generate_histograms,
                      generate_variance_figure,
                      get_pca_annotations,
@@ -670,6 +678,17 @@ def register_callbacks(dashapp):
         ucm_vec = get_ucm_vec()
         angle_df = get_pc_ucm_angles(pca_df, ucm_vec)
         table = generate_pca_table(angle_df)
+        return [table]
+
+    @dashapp.callback(Output('proj-table-container', 'children'),
+                      [Input('trials-table', 'derived_virtual_data')])
+    def set_proj_table(table_data):
+        df = pd.DataFrame(table_data)
+        df_proj = get_projections(df[['df1', 'df2']], get_ucm_vec())
+        # Get statistic characteristics of absolute lengths.
+        df_stats = get_stats(df_proj.abs())
+        df_stats.insert(0, 'projection', df_stats.index)
+        table = generate_simple_table(df_stats)
         return [table]
 
     @dashapp.callback(Output('scatterplot-trials', 'figure'),
