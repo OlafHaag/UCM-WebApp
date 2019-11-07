@@ -508,6 +508,37 @@ def generate_variance_figure(dataframe):
 
 
 #######################
+#
+#######################
+def get_table_div(table, num, title, description=None):
+    table = html.Div(className='six columns',
+                     children=[table,
+                               html.P(f"Table {num}"),
+                               dcc.Markdown(f"*{title}*"),
+                               dcc.Markdown(f"*Note*: {description}" if description else ""),
+                               ])
+    return table
+
+
+def get_figure_div(graph, num, description):
+    fig = html.Div(className='six columns',
+                   children=[html.Div([graph], className='pretty_container'),
+                             dcc.Markdown(f"*Figure {num}.*  {description}")])
+    return fig
+
+
+def dash_row(*children):
+    """
+    :param children: Components to be displayed side by side, e.g. table and figure.
+    :type children: List
+    :return:
+    """
+    row = html.Div(className='row', children=[*children])
+    sep = html.Hr()
+    return row, sep
+
+
+#######################
 # Compose components. #
 #######################
 def create_content():
@@ -535,8 +566,7 @@ def create_content():
                                                       'align-items': 'baseline',
                                                       'margin': '1rem auto',
                                                       },
-                                               children=[
-                                                         generate_user_select(df),
+                                               children=[generate_user_select(df),
                                                          dcc.Checklist(id='pca-checkbox',
                                                                        options=[{'label': 'Principal Components',
                                                                                  'value': 'Show'}],
@@ -569,42 +599,37 @@ def create_content():
                                                    "to adjust the threshold.")
                                       ],
                             )
-    trials_table = html.Div(className='six columns',
-                            children=[generate_table(df, 'trials-table'),
-                                      html.P("Table 1"),
-                                      dcc.Markdown("*Endpoint values of slider positions*"),
-                                      dcc.Markdown("*Note:* The goal of task 1 is to match the sum of df1 and df2 "
-                                                   "to be equal to 125. Outliers are identified using the robust "
-                                                   "covariance method and are colored in red.  \n" + filter_hint),
-                                      ])
-    hist_graph_dfs = html.Div(className='six columns',
-                              children=[html.Div([dcc.Graph(id='histogram-dfs')], className='pretty_container'),
-                                        dcc.Markdown("*Figure 4.*  Histograms of endpoint values for df1 and df2 "
-                                                     "compared to normal distributions.")])
-    hist_graph_sum = html.Div(className='six columns',
-                              children=[html.Div([dcc.Graph(id='histogram-sum')], className='pretty_container'),
-                                        dcc.Markdown("*Figure 5.*  Histogram of the sum of df1 and df2 "
-                                                     "compared to a normal distribution.")])
+    
+    trials_table = get_table_div(generate_table(df, 'trials-table'), 1,
+                                 "Endpoint values of slider positions",
+                                 "The goal of task 1 is to match the sum of df1 and df2 "
+                                 "to be equal to 125. Outliers are identified using the robust "
+                                 "covariance method and are colored in red.  \n" + filter_hint)
+    
+    hist_graph_dfs = get_figure_div(dcc.Graph(id='histogram-dfs'), 4, "Histograms of endpoint values for df1 and df2 "
+                                                                      "compared to normal distributions.")
+    
+    hist_graph_sum = get_figure_div(dcc.Graph(id='histogram-sum'), 5, "Histogram of the sum of df1 and df2 "
+                                                                      "compared to a normal distribution.")
     # ToDo: histogram of residuals
-    pca_graph = html.Div(children=[html.Div([dcc.Graph(id='barplot-pca')], className='pretty_container'),
-                                   dcc.Markdown("*Figure 6.* Explained variance by different principal components "
-                                                "in percent.")])
-    pca_table = html.Div(className='six columns',
-                         children=[generate_simple_table(df, 'pca-table'),
-                                   html.P("Table 2"),
-                                   dcc.Markdown("*Divergence between principal components "
-                                                "and the space parallel or orthogonal to the theoretical UCM*"),
-                                   ])
-    var_graph = html.Div(children=[html.Div([dcc.Graph(id='barplot-variance')], className='pretty_container'),
-                                   dcc.Markdown("*Figure 7.* Variance of the sum of df1 and df2 grouped by block "
-                                                "and participant.")])
-    var_table = html.Div(className='six columns',
-                         children=[generate_table(df, 'variance-table'),
-                                   html.P("Table 3"),
-                                   dcc.Markdown("*Means and variances of df1, df2 and their sum*"),
-                                   dcc.Markdown(filter_hint),
-                                   ])
-    # ToDo: table of projection lengths' mean and variance.
+    pca_graph = get_figure_div(dcc.Graph(id='barplot-pca'), 6, "Explained variance by different principal components"
+                                                               " in percent.")
+    
+    pca_table = get_table_div(generate_simple_table(df, 'pca-table'), 2,
+                              "Divergence between principal components "
+                              "and the space parallel or orthogonal to the theoretical UCM"
+                              )
+    
+    var_graph = get_figure_div(dcc.Graph(id='barplot-variance'), 7, "Variance of the sum of df1 and df2 "
+                                                                    "grouped by block and participant.")
+    var_graph.style = {'marginTop': '70px'}  # Match it to the table y position.
+    
+    var_table = get_table_div(generate_table(df, 'variance-table'), 3,
+                              "Means and variances of df1, df2 and their sum",
+                              filter_hint)
+    
+    # Table of projections' length mean and variance.
+    # ToDo: When LaTeX rendering is supported in dash Markdown, convert.
     proj_table = html.Div(className='six columns',
                           children=[generate_simple_table(df, 'proj-table'),
                                     html.P("Table 4"),
@@ -640,71 +665,30 @@ def create_content():
         
         # Figures and Tables.
         html.Div(style={'textAlign': 'left'},
-                 children=[
-            html.Div(className='row',
-                     children=[
-                         trials_graph,
-                         trials_table,
-                     ]),
-            html.Hr(),  # horizontal line
-            html.Div(className='row',
-                     children=[
-                         hist_graph_dfs,
-                         hist_graph_sum,
-                     ]),
-            html.Hr(),  # horizontal line
-            html.Div(className='row',
-                     children=[
-                         html.Div(pca_graph,
-                                  className='six columns'),
-                         pca_table
-                     ]),
-            html.Hr(),  # horizontal line
-            html.Div(className='row',
-                     children=[
-                         html.Div(var_graph,
-                                  className='six columns',
-                                  style={'marginTop': '70px'}),
-                         var_table
-                     ]),
-        html.Hr(),  # horizontal line
-            html.Div(className='row',
-                     children=[
-                         proj_table,
-                     ]),
-        ]),
-        html.Hr(),  # horizontal line
+                 children=[*dash_row(trials_graph, trials_table),
+                           *dash_row(hist_graph_dfs, hist_graph_sum),
+                           *dash_row(pca_graph, pca_table),
+                           *dash_row(var_graph, var_table),
+                           *dash_row(proj_table),
+                           ]),
     ])
-    
     return content
 
 
 def create_footer():
     """ A footer for the dashboard. """
-    footer_style = {'background-color': theme['background-color'], 'padding': '0.5rem'}
-    p0 = html.P(
-        children=[
-            html.Span("Built with "),
-            html.A(
-                "Plotly Dash", href='https://github.com/plotly/dash', target='_blank'
-            ),
-        ]
-    )
-    p1 = html.P(
-        children=[
-            html.Span("Soure Code on "),
-            html.A("Github", href='https://github.com/OlafHaag/UCM-WebApp/', target='_blank'),
-        ]
-    )
-    p2 = html.P(
-        children=[
-            html.Span("Data acquired with "),
-            html.A("UCMResearchApp", href='https://github.com/OlafHaag/UCMResearchApp', target='_blank'),
-        ]
-    )
+    def get_footer_link(label, url, url_text=None):
+        if not url_text:
+            url_text = url
+        link = html.P(children=[html.Span(f"{label } "), html.A(url_text, href=url, target='_blank')])
+        return link
+        
+    dash_link = get_footer_link("Built with", 'https://github.com/plotly/dash', "Plotly Dash")
+    src_link = get_footer_link("Source Code on", 'https://github.com/OlafHaag/UCM-WebApp/', "GitHub")
+    app_link = get_footer_link("Data acquired with", 'https://github.com/OlafHaag/UCMResearchApp', "UCMResearchApp")
     
-    div = html.Div([p0, p1, p2])
-    footer = html.Footer(children=div, style=footer_style)
+    footer_style = {'background-color': theme['background-color'], 'padding': '0.5rem'}
+    footer = html.Footer(children=[dash_link, src_link, app_link], style=footer_style)
     return footer
 
 
