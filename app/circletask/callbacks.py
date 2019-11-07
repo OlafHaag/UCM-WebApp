@@ -29,13 +29,12 @@ from .analysis import (get_data,
                        get_outlyingness,
                        get_projections,
                        get_stats)
-from .layout import (generate_simple_table,
-                     generate_trials_figure,
+from .layout import (generate_trials_figure,
                      generate_histograms,
                      generate_variance_figure,
                      get_pca_annotations,
                      generate_pca_figure,
-                     generate_pca_table,
+                     get_pca_columns_settings,
                      get_columns_settings)
 
 # Numpy data types compatibility with postgresql database.
@@ -671,33 +670,33 @@ def register_callbacks(dashapp):
         fig = generate_pca_figure(df)
         return fig
         
-    @dashapp.callback(Output('pca-table-container', 'children'),
+    @dashapp.callback([Output('pca-table', 'data'),
+                       Output('pca-table', 'columns')],
                       [Input('pca-store', 'data')])
     def set_pca_angle_table(pca_data):
         pca_df = pd.DataFrame(pca_data)
         ucm_vec = get_ucm_vec()
         angle_df = get_pc_ucm_angles(pca_df, ucm_vec)
-        table = generate_pca_table(angle_df)
-        return [table]
+        columns = get_pca_columns_settings(angle_df)
+        return angle_df.to_dict('records'), columns
 
-    @dashapp.callback(Output('proj-table-container', 'children'),
+    @dashapp.callback([Output('proj-table', 'data'),
+                       Output('proj-table', 'columns')],
                       [Input('trials-table', 'derived_virtual_data')])
     def set_proj_table(table_data):
         if not table_data:
             try:
-                columns = ['projection', 'mean', 'var', 'count']
-                df = pd.DataFrame(None, columns=columns)
-                return generate_simple_table(df)
+                return [], dash.no_update
             except (TypeError, IndexError):
-                return dash.no_update
+                raise PreventUpdate
             
         df = pd.DataFrame(table_data)
         df_proj = get_projections(df[['df1', 'df2']], get_ucm_vec())
         # Get statistic characteristics of absolute lengths.
         df_stats = get_stats(df_proj.abs())
         df_stats.insert(0, 'projection', df_stats.index)
-        table = generate_simple_table(df_stats)
-        return [table]
+        columns = get_columns_settings(df_stats)
+        return df_stats.to_dict('records'), columns
 
     @dashapp.callback(Output('scatterplot-trials', 'figure'),
                       [Input('pca-store', 'data'),  # Delay update until PCA is through.
@@ -735,8 +734,8 @@ def register_callbacks(dashapp):
                 columns = stored_data[0].keys()
                 df = pd.DataFrame(None, columns=columns)
                 return generate_histograms(df[['df1', 'df2']]), generate_histograms(df[['sum']])
-            except (TypeError, IndexError):
-                return [dash.no_update]*2
+            except (TypeError, IndexError, ValueError):
+                raise PreventUpdate
 
         df = pd.DataFrame(table_data)
         fig = generate_histograms(df[['df1', 'df2']]), generate_histograms(df[['sum']])
@@ -747,7 +746,7 @@ def register_callbacks(dashapp):
                       [Input('trials-table', 'derived_virtual_data')])
     def set_variance_table(filtered_trials_data):
         if not filtered_trials_data:
-            raise PreventUpdate
+            return [], dash.no_update
         
         df = pd.DataFrame(filtered_trials_data)
         df[['user', 'block', 'constraint']] = df[['user', 'block', 'constraint']].astype('category')

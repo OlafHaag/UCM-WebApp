@@ -197,13 +197,22 @@ def generate_histograms(dataframe):
         orientation='v',
     )
     
-    # Columns we want to plot histograms for. Display order is reversed.
     cols = list(dataframe.columns)
     cols.reverse()
-    data = [dataframe[c] for c in cols]
-    # Create distplot with curve_type set to 'normal'.
-    fig = ff.create_distplot(data, cols, curve_type='normal')  # Override default 'kde'.
-    fig.layout.update(legend=legend, margin=theme['graph_margins'])
+    if dataframe.empty:
+        fig = go.Figure()
+        fig.update_xaxes(range=[0, 100])
+    else:
+        # Columns we want to plot histograms for. Display order is reversed.
+        data = [dataframe[c] for c in cols]
+        # Create distplot with curve_type set to 'normal'.
+        fig = ff.create_distplot(data, cols, curve_type='normal')  # Override default 'kde'.
+
+    fig.layout.update(legend=legend,
+                      yaxis={'title': 'Probability Density'},
+                      xaxis={'title': 'Endpoint Value'},
+                      margin=theme['graph_margins'],
+                      )
     return fig
 
 
@@ -280,15 +289,17 @@ def generate_table(dataframe, table_id):
     return table
 
 
-def generate_simple_table(dataframe):
+def generate_simple_table(dataframe, table_id):
     """ Create a table just showing the data.
         No sorting or filterring.
 
     :param dataframe: data to be displayed.
+    :param table_id: Unique identifier for the table.
     :return: DataTable
     """
     
     table = dash_table.DataTable(
+        id=table_id,
         data=dataframe.to_dict('records'),
         columns=get_columns_settings(dataframe),
         export_format='csv',
@@ -429,44 +440,6 @@ def get_pca_columns_settings(dataframe):
     return columns
 
 
-def generate_pca_table(dataframe):
-    """ Create a table that displays the angles between principal components and UCM vectors.
-    
-    :param dataframe: Angles between principal components and ucm vectors.
-    :return: DataTable
-    """
-    dataframe.insert(0, 'pc', dataframe.index+1)
-    
-    table = dash_table.DataTable(
-        data=dataframe.to_dict('records'),
-        columns=get_pca_columns_settings(dataframe),
-        export_format='csv',
-        style_header={'fontStyle': 'italic',
-                      'borderTop': '1px solid black',
-                      'borderBottom': '1px solid black',
-                      'textAlign': 'center'},
-        fixed_rows={'headers': True, 'data': 0},
-        style_cell={
-            'minWidth': '0px', 'maxWidth': '20px',  # 'width': '20px',
-            'whiteSpace': 'normal',  # 'no-wrap',
-            'overflow': 'hidden',
-            'textOverflow': 'ellipsis',
-            'textAlign': 'center',
-        },
-        style_data={'border': '0px', 'textAlign': 'center'},
-        # Bottom header border not visible, fake it with upper border of row 0.
-        style_data_conditional=[{
-            "if": {"row_index": 0},
-            'borderTop': '1px solid black'
-        }],
-        css=[{
-            'selector': '.dash-cell div.dash-cell-value',
-            'rule': 'display: inline; white-space: inherit; overflow: inherit; text-overflow: inherit;'
-        }],
-    )
-    return table
-
-
 def generate_variance_figure(dataframe):
     """ Barplot of variance in the sum of df1 and df2 per block.
     
@@ -474,7 +447,9 @@ def generate_variance_figure(dataframe):
     :type dataframe: pandas.DataFrame
     """
     if dataframe.empty:
-        return go.Figure()
+        fig = go.Figure()
+        fig.layout.update(yaxis={'title': 'Variance'})
+        return fig
 
     blocks = dataframe['block'].unique()
 
@@ -589,8 +564,9 @@ def create_content():
                                                    "goals for the concurrent tasks are represented as larger discs."
                                                    " Only one of these goals is selected for a constrained block. "
                                                    "Principle components are displayed as arrows. "
-                                                   "A threshold for outliers calculated using the robust covariance"
-                                                   " method is drawn as a thin black line.")
+                                                   "A threshold for outliers calculated using the robust covariance "
+                                                   "method is drawn as a thin black line. Set the contamination rate "
+                                                   "to adjust the threshold.")
                                       ],
                             )
     trials_table = html.Div(className='six columns',
@@ -614,7 +590,7 @@ def create_content():
                                    dcc.Markdown("*Figure 6.* Explained variance by different principal components "
                                                 "in percent.")])
     pca_table = html.Div(className='six columns',
-                         children=[html.Div(id='pca-table-container'),
+                         children=[generate_simple_table(df, 'pca-table'),
                                    html.P("Table 2"),
                                    dcc.Markdown("*Divergence between principal components "
                                                 "and the space parallel or orthogonal to the theoretical UCM*"),
@@ -630,7 +606,7 @@ def create_content():
                                    ])
     # ToDo: table of projection lengths' mean and variance.
     proj_table = html.Div(className='six columns',
-                          children=[html.Div(id='proj-table-container'),
+                          children=[generate_simple_table(df, 'proj-table'),
                                     html.P("Table 4"),
                                     dcc.Markdown("*Mean and variance of projection's lengths*"),
                                     # Following text contains math formulas.

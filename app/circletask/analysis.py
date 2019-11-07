@@ -193,6 +193,7 @@ def get_pc_ucm_angles(dataframe, vec_ucm):
         angle_ortho = get_interior_angle(vec_ucm_ortho, row[['x', 'y']])
         df_angles.loc[pc] = [angle_parallel, angle_ortho]
     df_angles[['parallel', 'orthogonal']] = df_angles[['parallel', 'orthogonal']].astype(float)
+    df_angles.insert(0, 'pc', df_angles.index + 1)
     return df_angles
 
 
