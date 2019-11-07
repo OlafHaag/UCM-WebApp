@@ -16,12 +16,12 @@ def create_app(**config_overrides):
         register_extensions(server)
     
         # Add the first dash application to the flask server.
-        from app.dashapp1.layout import serve_layout as layout1
-        from app.dashapp1.layout import html_layout as dash_ct_index
-        from app.dashapp1.layout import app_route as dash_ct_route
-        from app.dashapp1.callbacks import register_callbacks as register_callbacks1
-        from app.dashapp1.external import external_stylesheets as stylesheets1
-        from app.dashapp1.external import external_scripts as scripts1
+        from app.circletask.layout import serve_layout as layout1
+        from app.circletask.layout import html_layout as dash_ct_index
+        from app.circletask.layout import app_route as dash_ct_route
+        from app.circletask.callbacks import register_callbacks as register_callbacks1
+        from app.circletask.external import external_stylesheets as stylesheets1
+        from app.circletask.external import external_scripts as scripts1
         register_dashapp(server,
                          'CircleTaskAnalysis',
                          dash_ct_route,
