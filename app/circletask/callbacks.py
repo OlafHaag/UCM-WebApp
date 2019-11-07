@@ -683,6 +683,14 @@ def register_callbacks(dashapp):
     @dashapp.callback(Output('proj-table-container', 'children'),
                       [Input('trials-table', 'derived_virtual_data')])
     def set_proj_table(table_data):
+        if not table_data:
+            try:
+                columns = ['projection', 'mean', 'var', 'count']
+                df = pd.DataFrame(None, columns=columns)
+                return generate_simple_table(df)
+            except (TypeError, IndexError):
+                return dash.no_update
+            
         df = pd.DataFrame(table_data)
         df_proj = get_projections(df[['df1', 'df2']], get_ucm_vec())
         # Get statistic characteristics of absolute lengths.
