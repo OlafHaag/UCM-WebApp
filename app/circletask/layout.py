@@ -155,9 +155,9 @@ def generate_trials_figure(df, contour_data=None):
         name="task goal 1"
     ))
     # Task goal 2 (DoF constrained) visualization.
-    fig.add_scatter(y=[75, 50], x=[50, 75],
+    fig.add_scatter(y=[62.5], x=[62.5],
                     name="task goal 2",
-                    text=["task goal 2 (df1=50)", "task goal 2 (df2=50)"],
+                    text=["task goal 2 (df1=df2)"],
                     hoverinfo='text',
                     mode='markers',
                     opacity=0.7,
