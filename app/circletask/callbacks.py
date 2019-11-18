@@ -691,7 +691,9 @@ def register_callbacks(dashapp):
                 raise PreventUpdate
             
         df = pd.DataFrame(table_data)
+        # Todo: groupby constraint
         df_proj = get_projections(df[['df1', 'df2']], get_ucm_vec())
+        
         # Get statistic characteristics of absolute lengths.
         df_stats = get_stats(df_proj.abs())
         df_stats.insert(0, 'projection', df_stats.index)
