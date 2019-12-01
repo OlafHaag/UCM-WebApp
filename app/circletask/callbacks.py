@@ -768,11 +768,11 @@ def register_callbacks(dashapp):
     @dashapp.callback([Output('variance-table', 'data'),
                        Output('variance-table', 'columns')],
                       [Input('trials-table', 'derived_virtual_data')])
-    def set_variance_table(filtered_trials_data):
-        if not filtered_trials_data:
+    def set_variance_table(table_data):
+        if not table_data:
             return [], dash.no_update
         
-        df = pd.DataFrame(filtered_trials_data)
+        df = pd.DataFrame(table_data)
         df[['user', 'block', 'constraint']] = df[['user', 'block', 'constraint']].astype('category')
         variances = get_descriptive_stats(df)
         columns = get_columns_settings(variances)
