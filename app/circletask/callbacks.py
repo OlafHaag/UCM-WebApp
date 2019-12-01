@@ -747,6 +747,23 @@ def register_callbacks(dashapp):
         df = pd.DataFrame(table_data)
         fig = generate_histograms(df[['df1', 'df2']]), generate_histograms(df[['sum']])
         return fig
+
+    @dashapp.callback([Output('corr-table', 'data'),
+                       Output('corr-table', 'columns')],
+                      [Input('trials-table', 'derived_virtual_data')])
+    def set_corr_table(table_data):
+        if not table_data:
+            try:
+                return [], dash.no_update
+            except (TypeError, IndexError):
+                raise PreventUpdate
+    
+        df = pd.DataFrame(table_data)
+        corr = df[['df1', 'df2', 'sum']].corr()
+        corr.index.name = ''
+        corr.reset_index(inplace=True)
+        columns = get_columns_settings(corr)
+        return corr.to_dict('records'), columns
         
     @dashapp.callback([Output('variance-table', 'data'),
                        Output('variance-table', 'columns')],

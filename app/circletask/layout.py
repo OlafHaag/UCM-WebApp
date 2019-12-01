@@ -611,11 +611,18 @@ def create_content():
     
     hist_graph_sum = get_figure_div(dcc.Graph(id='histogram-sum'), 5, "Histogram of the sum of df1 and df2 "
                                                                       "compared to a normal distribution.")
+    
+    corr_table = get_table_div(generate_simple_table(df, 'corr-table'), 2,
+                               "Pairwise Pearson correlation coefficients",
+                               "There is a reciprocal suppression when: "
+                               "r(sum,df1) > 0, r(sum, df2)>0, r(df1,df2)<0."
+                               )
+    
     # ToDo: histogram of residuals
     pca_graph = get_figure_div(dcc.Graph(id='barplot-pca'), 6, "Explained variance by different principal components"
                                                                " in percent.")
     
-    pca_table = get_table_div(generate_simple_table(df, 'pca-table'), 2,
+    pca_table = get_table_div(generate_simple_table(df, 'pca-table'), 3,
                               "Divergence between principal components "
                               "and the space parallel or orthogonal to the theoretical UCM"
                               )
@@ -624,7 +631,7 @@ def create_content():
                                                                     "grouped by block and participant.")
     var_graph.style = {'marginTop': '70px'}  # Match it to the table y position.
     
-    var_table = get_table_div(generate_table(df, 'variance-table'), 3,
+    var_table = get_table_div(generate_table(df, 'variance-table'), 4,
                               "Means and variances of df1, df2 and their sum",
                               filter_hint)
     
@@ -632,7 +639,7 @@ def create_content():
     # ToDo: When LaTeX rendering is supported in dash Markdown, convert.
     proj_table = html.Div(className='six columns',
                           children=[generate_simple_table(df, 'proj-table'),
-                                    html.P("Table 4"),
+                                    html.P("Table 5"),
                                     dcc.Markdown("*Mean and variance of projection's lengths*"),
                                     # Following text contains math formulas.
                                     # Keep the math sections short, as they do not wrap when resizing.
@@ -666,6 +673,7 @@ def create_content():
         html.Div(style={'textAlign': 'left'},
                  children=[*dash_row(trials_graph, trials_table),
                            *dash_row(hist_graph_dfs, hist_graph_sum),
+                           *dash_row(corr_table),
                            *dash_row(pca_graph, pca_table),
                            *dash_row(var_graph, var_table),
                            *dash_row(proj_table),
