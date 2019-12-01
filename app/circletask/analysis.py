@@ -235,16 +235,25 @@ def get_projections(points, vec_ucm):
     return coeffs
 
 
-def get_stats(data):
+def get_stats(data, by=None):
     """ Return mean and variance statistics for data.
     
     :param data: numerical data.
     :type data: pandas.Dataframe
+    :param by: groupby column name(s)
+    :type by: str|List
     :return: Dataframe with columns mean, var, count and column names of data as rows.
     :rtype: pandas.Dataframe
     """
-    stats = data.agg(['mean', 'var', 'count']).T
-    stats['count'] = stats['count'].astype(int)
+    if not by:
+        stats = data.agg(['mean', 'var', 'count']).T
+        stats['count'] = stats['count'].astype(int)
+        stats.insert(0, 'projection', stats.index)
+    else:
+        grouped = data.groupby(by)
+        stats = grouped.agg(['mean', 'var'])
+        stats['count'] = grouped.size()
+        stats.reset_index(inplace=True)
     return stats
     
     

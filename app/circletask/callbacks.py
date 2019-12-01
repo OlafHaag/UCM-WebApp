@@ -691,12 +691,17 @@ def register_callbacks(dashapp):
                 raise PreventUpdate
             
         df = pd.DataFrame(table_data)
-        # Todo: groupby constraint
-        df_proj = get_projections(df[['df1', 'df2']], get_ucm_vec())
+        df[['user', 'block', 'constraint']] = df[['user', 'block', 'constraint']].astype('category')
+
+        ucm_vec = get_ucm_vec()
+        df_proj = df[['block', 'df1', 'df2']].groupby('block').apply(get_projections, ucm_vec).abs()
+        df_proj['block'] = df['block']
         
         # Get statistic characteristics of absolute lengths.
-        df_stats = get_stats(df_proj.abs())
-        df_stats.insert(0, 'projection', df_stats.index)
+        df_stats = get_stats(df_proj, by='block')
+        # For display in a simple table flatten Multiindex columns.
+        df_stats.columns = [" ".join(col).strip() for col in df_stats.columns.to_flat_index()]
+        # Get display settings for numeric cells.
         columns = get_columns_settings(df_stats)
         return df_stats.to_dict('records'), columns
 
