@@ -644,16 +644,13 @@ def create_content():
                                     # Following text contains math formulas.
                                     # Keep the math sections short, as they do not wrap when resizing.
                                     html.Span([html.I("Note: "),
-                                               html.Span("The lengths are the absolute values of coefficients "),
-                                               html.Span(["a \mtext{ and } b \mtext{ in }"], className='tex'),
-                                               html.Span(["\\vec{x}-\\bar{x} = a\\hat{v}_{\parallel UCM} + b\\hat{v}_{\\perp UCM}"],
-                                                         className='tex'),
-                                               html.Span(["\mtext{ with } \\vec{x} "], className='tex'),
-                                               html.Span([" being a 2-dimensional data point "]),
-                                               html.Span(["\\vec{x}=[df1 \mtext{  } df2] \mtext{ and } \\bar{x}"], className='tex'),
-                                               html.Span([" being the mean vector. "]),
-                                               html.Span(["\\|\\hat{v}_{\parallel UCM}\\|=\\|\\hat{v}_{\\perp UCM}\\|=1."],
-                                                         className='tex'),
+                                               html.Span("The lengths are the absolute values of coefficients "
+                                                         "$a$ and $b$ in $\\vec{x}-\\bar{x} = "
+                                                         "a\\hat{v}_{\parallel UCM} + b\\hat{v}_{\\perp UCM}$ "
+                                                         "with $\\vec{x}$ being a 2-dimensional data point "
+                                                         "$\\vec{x}=[df1 \\; df2]$ and $\\bar{x}$ "
+                                                         "being the mean vector. "
+                                                         "$\\|\\hat{v}_{\parallel UCM}\\|=\\|\\hat{v}_{\\perp UCM}\\|=1$.",)
                                                ]),
                                     ])
     

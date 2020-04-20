@@ -4,5 +4,5 @@ external_stylesheets = ['/static/dist/css/styles.css',
 
 external_scripts = ['/static/dist/js/includes/jquery.min.js',
                     '/static/dist/js/main.js',
-                    '/static/dist/js/includes/TeXZilla-min.js',
+                    'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.4/MathJax.js?config=TeX-MML-AM_CHTML',
                     ]
