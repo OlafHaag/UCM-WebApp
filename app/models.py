@@ -11,6 +11,7 @@ from app.extensions import db
 
 
 class Device(db.Model):
+    """ Information about a device regarding display size and platform. """
     __tablename__ = 'devices'
     
     id = db.Column(db.String(8), primary_key=True)
@@ -45,14 +46,16 @@ class User(db.Model):
 
 
 class CTSession(db.Model):
+    """ This represents meta information about 1 block in the circle task. """
     __tablename__ = 'ct_sessions'
     
     # The combination of user_id and hash should* be unique and could be used as a composite key (and drop id).
     # time column can't be used, as it may not be unique, even though it's unlikely.
     # *It's highly unlikely that someone produces the exact same dataset, but not impossible.
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True)  # For each block unique.
     user_id = db.Column(db.String(32), db.ForeignKey('users.id'), nullable=False)
-    session = db.Column(db.Integer, unique=False, nullable=False, default=1)  # For chronological ordering.
+    session_uid = db.Column(db.String(32), unique=False, nullable=False)  # For grouping session as a whole.
+    nth_session = db.Column(db.Integer, unique=False, nullable=False, default=1)  # For chronological ordering.
     block = db.Column(db.Integer, unique=False, nullable=True, default=1)
     treatment = db.Column(db.String(120), unique=False, nullable=True)
     warm_up = db.Column(db.Float, unique=False, nullable=False, default=0.5)
@@ -60,13 +63,14 @@ class CTSession(db.Model):
     cool_down = db.Column(db.Float, unique=False, nullable=False, default=0.5)
     time = db.Column(db.Float, unique=False, nullable=True)
     time_iso = db.Column(db.DateTime, unique=False, nullable=False, default=datetime.utcnow)
-    hash = db.Column(db.String(32), unique=True, nullable=False)
+    hash = db.Column(db.String(32), unique=True, nullable=False)  # For each block.
     
     trials_CT = db.relationship('CircleTask', backref='session_obj')
 
     def __repr__(self):
-        return f"CTSession(user_id='{self.user_id}', session={self.session}, block={self.block}, " \
-            f"treatment='{self.treatment}', time={self.time}, time_iso='{self.time_iso}', hash='{self.hash}')"
+        return f"CTSession(user_id='{self.user_id}', session_uid={self.session_uid}, nth_session={self.nth_session}, " \
+               f"block={self.block}, treatment='{self.treatment}', time={self.time}, time_iso='{self.time_iso}', " \
+               f"hash='{self.hash}')"
 
 
 class CircleTask(db.Model):
@@ -82,12 +86,21 @@ class CircleTask(db.Model):
     trial = db.Column(db.Integer, unique=False, nullable=False)
     df1 = db.Column(db.Float, unique=False, nullable=True)
     df2 = db.Column(db.Float, unique=False, nullable=True)
+    df1_grab = db.Column(db.Float, unique=False, nullable=True)
+    df1_release = db.Column(db.Float, unique=False, nullable=True)
+    df1_duration = db.Column(db.Float, unique=False, nullable=True)
+    df2_grab = db.Column(db.Float, unique=False, nullable=True)
+    df2_release = db.Column(db.Float, unique=False, nullable=True)
+    df2_duration = db.Column(db.Float, unique=False, nullable=True)
     sum = db.Column(db.Float, unique=False, nullable=True)
 
     def __init__(self, **kwargs):
         super(CircleTask, self).__init__(**kwargs)
+        self.df1_duration = kwargs['df1_release'] - kwargs['df1_grab']
+        self.df2_duration = kwargs['df2_release'] - kwargs['df2_grab']
         self.sum = kwargs['df1'] + kwargs['df2']
         
     def __repr__(self):
         return f"CircleTask(user_id='{self.user_id}', session={self.session}, trial={self.trial}, " \
-            f"df1={self.df1}, df2={self.df2})"
+            f"df1={self.df1}, df1_grab={self.df1_grab}, df1_release={self.df1_release}, " \
+               f"df2={self.df2}, df2_grab={self.df2_grab}, df2_release={self.df2_release})"

@@ -164,8 +164,13 @@ def new_ct_session(**kwargs):
     :return: CTSession instance.
     :rtype: CTSession
     """
-    # ToDo: session count
+    # Get all unique sessions by user not including this uid and count + 1.
+    nth_sessions = CTSession.query.filter(CTSession.user_id == kwargs['user_id'],
+                                          CTSession.session_uid != kwargs['session_uid']).distinct(
+                                                                                            'session_uid').count() + 1
     session = CTSession(user_id=kwargs['user_id'],
+                        session_uid=kwargs['session_uid'],
+                        nth_session=nth_sessions,
                         block=kwargs['block'],
                         treatment=kwargs['treatment'],
                         warm_up=kwargs['warm_up'],
@@ -188,7 +193,12 @@ def new_circletask_trial(**kwargs):
                        session=kwargs['session'],
                        trial=kwargs['trial'],
                        df1=kwargs['df1'],
-                       df2=kwargs['df2'])
+                       df2=kwargs['df2'],
+                       df1_grab=kwargs['df1_grab'],
+                       df1_release=kwargs['df1_release'],
+                       df2_grab=kwargs['df2_grab'],
+                       df2_release=kwargs['df2_release'],
+                       )
     return trial
 
 
@@ -211,6 +221,7 @@ def add_to_db(device_kwargs, user_kwargs, session_kwargs, trials_kwargs):
             raise ModelCreationError(task_err_msg)
         if task == 'Circle Task':
             model = CTSession
+        # Here'd be the place to add other tasks through elif.
         else:
             raise ModelCreationError(task_err_msg)
         try:
@@ -326,45 +337,44 @@ def check_circletask_hash(df, sent_hash):
     :return: Do hashes match?
     :rtype: bool
     """
-    df_hash = md5(df[['df1', 'df2']].round(5).values.copy(order='C')).hexdigest()
+    df_hash = md5(df[['df1', 'df2',
+                      'df1_grab', 'df1_release',
+                      'df2_grab', 'df2_release']].round(5).values.copy(order='C')).hexdigest()
     if df_hash != sent_hash:
         raise UploadError("ERROR: Data corrupted.")
     else:
         return True
 
 
-def check_circletask_touched(df, default=10.0):
-    """ Check if trials are all still on at default.
+def check_circletask_touched(df):
+    """ Check if all sliders were used.
 
     :param df: Dataframe to check.
     :type df: pandas.DataFrame
-    :param default: The default value for the slider. If it's still the same, the task wasn't done properly.
-    :type default: float
-    :return: If the sliders where used at all.
+    :return: Whether all sliders where used.
     :rtype: bool
     """
-    touched = not (df[['df1', 'df2']].values == default).all()
-    if not touched:
+    #
+    untouched = df.isna().all().any()
+    if untouched:
         raise UploadError("ERROR: Task not properly executed.")
     return True
 
 
-def check_circletask_integrity(df, sent_hash, default=10.0):
+def check_circletask_integrity(df, sent_hash):
     """ Evaluate if this data was tampered with and the controls actually touched.
 
     :param df: Dataframe to check.
     :type df: pandas.DataFrame
     :param sent_hash: The received hash to compare df to.
     :type sent_hash: str
-    :param default: The default value for the slider. If it's still the same, the task wasn't done properly.
-    :type default: float
     :return: Status of integrity.
     :rtype: bool
     """
     try:
-        check = check_circletask_touched(df, default) and check_circletask_hash(df, sent_hash)
+        check = check_circletask_touched(df) and check_circletask_hash(df, sent_hash)
     except UploadError:
-        raise
+        raise UploadError("ERROR: Data corrupted.")
     return check
 
 
@@ -398,16 +408,20 @@ def get_user_properties(csv_file):
     try:
         # For device and user we expect them to contain only 1 entry.
         props = pd.read_csv(csv_file).iloc[0].to_dict()  # df->Series->dict
-    except Exception:
+    except IOError:
         raise UploadError("ERROR: Failed to read file contents for user.")
+    except IndexError:
+        raise UploadError("ERROR: No data in User table.")
     return props
 
 
-def get_session_df(csv_file, user_id):
+def get_session_df(csv_file, session_uid, user_id):
     """ Return a DataFrame from CSV file or buffer and add user_id column.
     
     :param csv_file: Table with session data.
     :type csv_file: str|io.StringIO
+    :param session_uid: Identifier to group blocks as belonging to this session.
+    :type session_uid: str
     :param user_id: ID of the user who performed the session.
     :type user_id: str
     :return: Properties of the blocks.
@@ -416,11 +430,16 @@ def get_session_df(csv_file, user_id):
     try:
         # Read data and keep empty string in treatment as empty string, not NaN.
         session_df = pd.read_csv(csv_file, keep_default_na=False)
+    except Exception:
+        raise UploadError("ERROR: Failed to read file contents for session.")
+    try:
         # Convert time_iso string to datetime.
         session_df['time_iso'] = session_df['time_iso'].apply(lambda t: datetime.strptime(t, time_fmt))
         session_df['user_id'] = user_id
-    except Exception:
-        raise UploadError("ERROR: Failed to read file contents for session.")
+    except KeyError:
+        raise UploadError("ERROR: Missing columns in session data.")
+    # Unique identifier for session so we can associate the blocks with this particular session.
+    session_df['session_uid'] = session_uid
     return session_df
 
 
@@ -541,8 +560,22 @@ def parse_uploaded_files(list_of_filenames, list_of_contents):
     try:
         kw['device'] = get_device_properties(io.StringIO(decoded_list[device_idx]))
         kw['user'] = get_user_properties(io.StringIO(decoded_list[user_idx]))
-        session_df = get_session_df(io.StringIO(decoded_list[session_idx]), kw['user']['id'])
+    except UploadError:
+        raise
+    # Use the time of the session to create a uid from it, so we can group the blocks together later on.
+    basename, ext = list_of_filenames[session_idx].split('.')
+    try:
+        # Unique id based on this user at that time.
+        session_uid = md5((kw['user']['id'] + basename.split('-')[1]).encode()).hexdigest()
+    except KeyError:
+        raise UploadError("ERROR: User ID is missing.")
+    except IndexError:
+        raise UploadError("ERROR: Session file name is missing datetime.")
+    
+    try:
+        session_df = get_session_df(io.StringIO(decoded_list[session_idx]), session_uid, kw['user']['id'])
         kw['session'] = [data._asdict() for data in session_df.itertuples(index=False)]  # Convert namedtuple to dict.
+        
         kw['trials'] = get_trials_properties(list_of_filenames,
                                              decoded_list,
                                              session_df['time_iso'],
@@ -634,7 +667,7 @@ def register_callbacks(dashapp):
     def set_table(stored_data, users_selected, contamination):
         if not stored_data:
             raise PreventUpdate
-
+        
         df = pd.DataFrame(stored_data)
         # Get oultier data.
         if not contamination:
@@ -643,22 +676,23 @@ def register_callbacks(dashapp):
         df['outlier'] = outliers.astype(int)
         # Format table columns.
         columns = get_columns_settings(df)
-
+        
         if not users_selected:
             # Return all the rows on initial load/no user selected.
             return df.to_dict('records'), columns, z.tolist()
         
-        df[['user', 'block', 'constraint', 'outlier']] = df[['user', 'block', 'constraint', 'outlier']].astype('category')
+        df[['user', 'block', 'constraint', 'outlier']] = df[['user', 'block', 'constraint', 'outlier']].astype(
+            'category')
         filtered = df.query('`user` in @users_selected')
         return filtered.to_dict('records'), columns, z.tolist()
-
+    
     @dashapp.callback(Output('pca-store', 'data'),
                       [Input('trials-table', 'derived_virtual_data')])
     def set_pca_store(table_data):
         df = pd.DataFrame(table_data)
         if df.empty:
             return []
-
+        
         df[['user', 'block', 'constraint']] = df[['user', 'block', 'constraint']].astype('category')
         pca_df = get_pca_data(df)
         return pca_df.to_dict('records')
@@ -669,7 +703,7 @@ def register_callbacks(dashapp):
         df = pd.DataFrame(pca_data)
         fig = generate_pca_figure(df)
         return fig
-        
+    
     @dashapp.callback([Output('pca-table', 'data'),
                        Output('pca-table', 'columns')],
                       [Input('pca-store', 'data')])
@@ -679,7 +713,7 @@ def register_callbacks(dashapp):
         angle_df = get_pc_ucm_angles(pca_df, ucm_vec)
         columns = get_pca_columns_settings(angle_df)
         return angle_df.to_dict('records'), columns
-
+    
     @dashapp.callback([Output('proj-table', 'data'),
                        Output('proj-table', 'columns')],
                       [Input('trials-table', 'derived_virtual_data')])
@@ -689,10 +723,10 @@ def register_callbacks(dashapp):
                 return [], dash.no_update
             except (TypeError, IndexError):
                 raise PreventUpdate
-            
+        
         df = pd.DataFrame(table_data)
         df[['user', 'block', 'constraint']] = df[['user', 'block', 'constraint']].astype('category')
-
+        
         ucm_vec = get_ucm_vec()
         df_proj = df[['block', 'df1', 'df2']].groupby('block').apply(get_projections, ucm_vec).abs()
         df_proj['block'] = df['block']
@@ -704,7 +738,7 @@ def register_callbacks(dashapp):
         # Get display settings for numeric cells.
         columns = get_columns_settings(df_stats)
         return df_stats.to_dict('records'), columns
-
+    
     @dashapp.callback(Output('scatterplot-trials', 'figure'),
                       [Input('pca-store', 'data'),  # Delay update until PCA is through.
                        Input('pca-checkbox', 'value')],
@@ -719,7 +753,7 @@ def register_callbacks(dashapp):
                 return generate_trials_figure(df)
             except (TypeError, IndexError):
                 return dash.no_update
-            
+        
         df = pd.DataFrame(table_data)
         z = np.array(contour)
         fig = generate_trials_figure(df, contour_data=z)
@@ -743,11 +777,11 @@ def register_callbacks(dashapp):
                 return generate_histograms(df[['df1', 'df2']]), generate_histograms(df[['sum']])
             except (TypeError, IndexError, ValueError):
                 raise PreventUpdate
-
+        
         df = pd.DataFrame(table_data)
         fig = generate_histograms(df[['df1', 'df2']]), generate_histograms(df[['sum']])
         return fig
-
+    
     @dashapp.callback([Output('corr-table', 'data'),
                        Output('corr-table', 'columns')],
                       [Input('trials-table', 'derived_virtual_data')])
@@ -757,14 +791,14 @@ def register_callbacks(dashapp):
                 return [], dash.no_update
             except (TypeError, IndexError):
                 raise PreventUpdate
-    
+        
         df = pd.DataFrame(table_data)
         corr = df[['df1', 'df2', 'sum']].corr()
         corr.index.name = ''
         corr.reset_index(inplace=True)
         columns = get_columns_settings(corr)
         return corr.to_dict('records'), columns
-        
+    
     @dashapp.callback([Output('variance-table', 'data'),
                        Output('variance-table', 'columns')],
                       [Input('trials-table', 'derived_virtual_data')])
@@ -788,7 +822,6 @@ def register_callbacks(dashapp):
                 return generate_variance_figure(df)
             except (TypeError, IndexError):
                 return dash.no_update
-    
+        
         df = pd.DataFrame(table_data)
         return generate_variance_figure(df)
-
