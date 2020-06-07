@@ -689,7 +689,7 @@ def create_footer():
         
     dash_link = get_footer_link("Built with", 'https://github.com/plotly/dash', "Plotly Dash")
     src_link = get_footer_link("Source Code on", 'https://github.com/OlafHaag/UCM-WebApp/', "GitHub")
-    app_link = get_footer_link("Data acquired with", 'https://github.com/OlafHaag/UCMResearchApp', "UCMResearchApp")
+    app_link = get_footer_link("Data acquired with", 'https://github.com/OlafHaag/NeuroPsyResearchApp', "NeuroPsy Research App")
     
     footer_style = {'background-color': theme['background-color'], 'padding': '0.5rem'}
     footer = html.Footer(children=[dash_link, src_link, app_link], style=footer_style)
