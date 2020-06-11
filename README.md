@@ -25,7 +25,7 @@ Heroku's free PostgreSQL Add-on has a row limit of 10,000.
 ### Configuration
 * Make a local copy of _.env-example_ and name it _.env_
 * Change its values, e.g. set **DATABASE_URL** to use the values you set in the step PostgreSQL
-* DO NOT SUBMIT _.env_ TO YOUR VERSION CONTROL
+* __DO NOT SUBMIT _.env_ TO YOUR VERSION CONTROL__
 
 ### Create Tables
 After having set up the virtual environment with Pipenv, the database can be managed from the terminal.
@@ -36,7 +36,7 @@ After having set up the virtual environment with Pipenv, the database can be man
 * `flask db migrate` after changes to Model or after init. Creates versions.  
 * `flask db upgrade` to apply changes and create or modify the tables in the database. **This is the only one needed to be executed on the remote db.**
 * For clearing the data during development, go to a SQL prompt, or use pgAdmin or your IDE and truncate the tables cascaded. 
-  Use `TRUNCATE circle_tasks, ct_sessions, devices, users CASCADE;`
+  Use `TRUNCATE circletask_trials, circletask_blocks, devices, users CASCADE;`
 
 
 ## Remote Setup

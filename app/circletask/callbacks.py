@@ -1,7 +1,7 @@
 import io
 import base64
 from datetime import datetime
-from collections import namedtuple, defaultdict
+from collections import namedtuple
 from hashlib import md5
 from contextlib import suppress, wraps
 
@@ -10,7 +10,6 @@ from sqlalchemy.exc import IntegrityError
 
 import dash
 import dash_html_components as html
-from dash_table.Format import Format, Scheme
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 
@@ -19,7 +18,7 @@ import numpy as np
 from psycopg2.extensions import register_adapter, AsIs
 
 from app.extensions import db
-from app.models import Device, User, CTSession, CircleTask
+from app.models import Device, User, CircleTaskBlock, CircleTaskTrial
 from .exceptions import UploadError, ModelCreationError
 from .analysis import (get_data,
                        get_descriptive_stats,
@@ -93,7 +92,7 @@ def get_one_or_create(model,
     Someone else is committing the same data.
     
     To clarify: The device should be unique, as shall the user.
-    Session should also be unique by their hash value, and probably time, too.
+    Block should also be unique by their hash value, and probably time, too.
     For trials this function must not be used. We always add new trials if the session/block is not pre-existing.
     
     :param model: model class.
@@ -158,28 +157,28 @@ def new_user(**kwargs):
 
 
 @raise_on_error
-def new_ct_session(**kwargs):
-    """ Create a new instance of CTSession (block).
+def new_circletask_block(**kwargs):
+    """ Create a new instance of CircleTaskBlock.
     
-    :return: CTSession instance.
-    :rtype: CTSession
+    :return: CircleTaskBlock instance.
+    :rtype: CircleTaskBlock
     """
     # Get all unique sessions by user not including this uid and count + 1.
-    nth_sessions = CTSession.query.filter(CTSession.user_id == kwargs['user_id'],
-                                          CTSession.session_uid != kwargs['session_uid']).distinct(
+    nth_sessions = CircleTaskBlock.query.filter(CircleTaskBlock.user_id == kwargs['user_id'],
+                                                CircleTaskBlock.session_uid != kwargs['session_uid']).distinct(
                                                                                             'session_uid').count() + 1
-    session = CTSession(user_id=kwargs['user_id'],
-                        session_uid=kwargs['session_uid'],
-                        nth_session=nth_sessions,
-                        block=kwargs['block'],
-                        treatment=kwargs['treatment'],
-                        warm_up=kwargs['warm_up'],
-                        trial_duration=kwargs['trial_duration'],
-                        cool_down=kwargs['cool_down'],
-                        time=kwargs['time'],
-                        time_iso=kwargs['time_iso'],
-                        hash=kwargs['hash'])
-    return session
+    block = CircleTaskBlock(user_id=kwargs['user_id'],
+                            session_uid=kwargs['session_uid'],
+                            nth_session=nth_sessions,
+                            nth_block=kwargs['nth_block'],
+                            treatment=kwargs['treatment'],
+                            warm_up=kwargs['warm_up'],
+                            trial_duration=kwargs['trial_duration'],
+                            cool_down=kwargs['cool_down'],
+                            time=kwargs['time'],
+                            time_iso=kwargs['time_iso'],
+                            hash=kwargs['hash'])
+    return block
 
 
 @raise_on_error
@@ -187,22 +186,35 @@ def new_circletask_trial(**kwargs):
     """ Create a new instance of CircleTask.
     
     :return: CircleTask instance.
-    :rtype: CircleTask
+    :rtype: CircleTaskTrial
     """
-    trial = CircleTask(user_id=kwargs['user_id'],
-                       session=kwargs['session'],
-                       trial=kwargs['trial'],
-                       df1=kwargs['df1'],
-                       df2=kwargs['df2'],
-                       df1_grab=kwargs['df1_grab'],
-                       df1_release=kwargs['df1_release'],
-                       df2_grab=kwargs['df2_grab'],
-                       df2_release=kwargs['df2_release'],
-                       )
+    trial = CircleTaskTrial(user_id=kwargs['user_id'],
+                            block_id=kwargs['block_id'],
+                            trial=kwargs['trial'],
+                            df1=kwargs['df1'],
+                            df2=kwargs['df2'],
+                            df1_grab=kwargs['df1_grab'],
+                            df1_release=kwargs['df1_release'],
+                            df2_grab=kwargs['df2_grab'],
+                            df2_release=kwargs['df2_release'],
+                            )
     return trial
 
 
-def add_to_db(device_kwargs, user_kwargs, session_kwargs, trials_kwargs):
+def add_to_db(device_kwargs, user_kwargs, blocks_kwargs, trials_kwargs):
+    """ Takes data, checks for existing records and adds them to database if they're new. Raises UploadError on error.
+    
+    :param device_kwargs: Data about device.
+    :type device_kwargs: dict
+    :param user_kwargs: Data about user.
+    :type user_kwargs: dict
+    :param blocks_kwargs: Data from blocks.
+    :type blocks_kwargs: list[dict]
+    :param trials_kwargs: Data from trials.
+    :type trials_kwargs: list[OrderedDict]
+    
+    :rtype: None
+    """
     # Create model instances.
     try:
         device = get_one_or_create(Device, create_func=new_device, **device_kwargs).instance
@@ -210,41 +222,41 @@ def add_to_db(device_kwargs, user_kwargs, session_kwargs, trials_kwargs):
     except ModelCreationError:
         raise
     
-    # Add sessions to db.
+    # Add blocks to db.
     task_err_msg = "ERROR: Failed to identify session as 'Circle Task'."
-    sessions = list()
-    for kw in session_kwargs:
+    blocks = list()
+    for kw in blocks_kwargs:
         # This dashboard only accepts Circle Task (for now).
         try:
             task = kw.pop('task')
         except KeyError:
             raise ModelCreationError(task_err_msg)
         if task == 'Circle Task':
-            model = CTSession
+            model = CircleTaskBlock
         # Here'd be the place to add other tasks through elif.
         else:
             raise ModelCreationError(task_err_msg)
         try:
-            session, created = get_one_or_create(model, create_func=new_ct_session, **kw)
+            block, created = get_one_or_create(model, create_func=new_circletask_block, **kw)
         except ModelCreationError:
             raise
         # Check if session was already uploaded.
         if not created:
             raise ModelCreationError("ERROR: Session(s) already uploaded.")
-        sessions.append(session)
+        blocks.append(block)
     
     # Add trials.
     # ToDo: Use df.to_sql(name='circle_tasks', con=db.engine, if_exists='append', index=False, method='multi')?
     trials = list()
     for kw in trials_kwargs:
         try:
-            session_idx = kw.pop('session_idx')
+            block_idx = kw.pop('block_idx')
         except KeyError:
-            raise ModelCreationError("ERROR: Failed to relate trial to session.")
-        # Add session relationship.
-        kw['session'] = sessions[session_idx].id
+            raise ModelCreationError("ERROR: Failed to relate trials to a block in the session.")
+        # Add block relationship.
+        kw['block_id'] = blocks[block_idx].id
         try:
-            trial, created = get_one_or_create(CircleTask, create_func=new_circletask_trial, **kw)
+            trial, created = get_one_or_create(CircleTaskTrial, create_func=new_circletask_trial, **kw)
         except ModelCreationError:
             raise
     
@@ -415,12 +427,12 @@ def get_user_properties(csv_file):
     return props
 
 
-def get_session_df(csv_file, session_uid, user_id):
+def get_blocks_df(csv_file, session_uid, user_id):
     """ Return a DataFrame from CSV file or buffer and add user_id column.
     
-    :param csv_file: Table with session data.
+    :param csv_file: Table with session data for blocks.
     :type csv_file: str|io.StringIO
-    :param session_uid: Identifier to group blocks as belonging to this session.
+    :param session_uid: Identifier to group blocks as belonging to the same session.
     :type session_uid: str
     :param user_id: ID of the user who performed the session.
     :type user_id: str
@@ -429,18 +441,20 @@ def get_session_df(csv_file, session_uid, user_id):
     """
     try:
         # Read data and keep empty string in treatment as empty string, not NaN.
-        session_df = pd.read_csv(csv_file, keep_default_na=False)
+        blocks_df = pd.read_csv(csv_file, keep_default_na=False)
     except Exception:
         raise UploadError("ERROR: Failed to read file contents for session.")
     try:
         # Convert time_iso string to datetime.
-        session_df['time_iso'] = session_df['time_iso'].apply(lambda t: datetime.strptime(t, time_fmt))
-        session_df['user_id'] = user_id
+        blocks_df['time_iso'] = blocks_df['time_iso'].apply(lambda t: datetime.strptime(t, time_fmt))
+        blocks_df['user_id'] = user_id
+        # Rename 'block' column to CircleTaskBlock model compatible 'nth_block'
+        blocks_df.rename(columns={'block': 'nth_block'}, inplace=True)
     except KeyError:
         raise UploadError("ERROR: Missing columns in session data.")
     # Unique identifier for session so we can associate the blocks with this particular session.
-    session_df['session_uid'] = session_uid
-    return session_df
+    blocks_df['session_uid'] = session_uid
+    return blocks_df
 
 
 def get_trials_meta(filename):
@@ -463,7 +477,7 @@ def get_trials_meta(filename):
 
 
 def get_trials_properties(filenames, contents, times, blocks, hashes, user_id):
-    """
+    """ Read all uploaded blocks with trials, check integrity, concatenate.
     
     :param filenames: All uploaded filenames.
     :type filenames: list
@@ -477,13 +491,15 @@ def get_trials_properties(filenames, contents, times, blocks, hashes, user_id):
     :type hashes: pandas.Series
     :param user_id: ID of user who provided the data of trials.
     :type user_id: str
-    :return: Properties of all the trials.
-    :rtype: dict
+    :return: Properties of all the trials as generator.
+    :rtype: generator
     """
+    # Look for files containing trial data.
     file_indices = get_file_indices(filenames, 'trials')
     if not file_indices:
         raise UploadError("ERROR: Trial files are missing.")
     
+    # Collect data from each file as separate DataFrames.
     trials_dfs = list()
     for idx in file_indices:
         # Get information from filename.
@@ -496,19 +512,20 @@ def get_trials_properties(filenames, contents, times, blocks, hashes, user_id):
             df = pd.read_csv(io.StringIO(contents[idx]))
         except Exception:
             raise UploadError("ERROR: Failed to read file contents for trials.")
-        # Add index of session for later relationship assignment.
+        # Determine to which block in the session this file belongs to.
         mask = (times == trials_meta.time_iso) & (blocks == trials_meta.block)
         try:
-            session_idx = mask[mask].index[0]
-            df['session_idx'] = session_idx
+            block_idx = mask[mask].index[0]  # The accompanying row in session file.
         except IndexError:
-            raise UploadError("ERROR: Mismatch between session data and trials.")
-        # Check data integrity.
-        sent_hash = hashes.iloc[session_idx]
+            raise UploadError("ERROR: Mismatch between data in session file and trials file.")
+        # Check data integrity by comparing hash values of this file and what was sent with the session file.
+        sent_hash = hashes.iloc[block_idx]
         try:
             check_passed = check_circletask_integrity(df, sent_hash)
         except UploadError:
             raise
+        # Add block index to relate trials to a CircleTaskBlock object when adding them to the database later on.
+        df['block_idx'] = block_idx
         trials_dfs.append(df)
     
     # Concatenate the different trials DataFrames. Rows are augmented by block & time_iso for differentiation later on.
@@ -528,7 +545,7 @@ def parse_uploaded_files(list_of_filenames, list_of_contents):
         
         'user': dict
         
-        'session': list
+        'blocks': list
         
         'trials': generator
     
@@ -543,9 +560,9 @@ def parse_uploaded_files(list_of_filenames, list_of_contents):
     # If there was an error in mapping the table types to files, return that error.
     try:
         # If files are missing get_table_idx raises UploadError.
-        device_idx = get_table_idx(list_of_filenames, 'device')
-        user_idx = get_table_idx(list_of_filenames, 'user')
-        session_idx = get_table_idx(list_of_filenames, 'session')
+        device_file_idx = get_table_idx(list_of_filenames, 'device')
+        user_file_idx = get_table_idx(list_of_filenames, 'user')
+        blocks_file_idx = get_table_idx(list_of_filenames, 'session')
     except UploadError:
         raise
     
@@ -558,12 +575,12 @@ def parse_uploaded_files(list_of_filenames, list_of_contents):
     # Extract data from content for the database models.
     kw = dict()  # Keyword arguments for each table.
     try:
-        kw['device'] = get_device_properties(io.StringIO(decoded_list[device_idx]))
-        kw['user'] = get_user_properties(io.StringIO(decoded_list[user_idx]))
+        kw['device'] = get_device_properties(io.StringIO(decoded_list[device_file_idx]))
+        kw['user'] = get_user_properties(io.StringIO(decoded_list[user_file_idx]))
     except UploadError:
         raise
     # Use the time of the session to create a uid from it, so we can group the blocks together later on.
-    basename, ext = list_of_filenames[session_idx].split('.')
+    basename, ext = list_of_filenames[blocks_file_idx].split('.')
     try:
         # Unique id based on this user at that time.
         session_uid = md5((kw['user']['id'] + basename.split('-')[1]).encode()).hexdigest()
@@ -573,23 +590,23 @@ def parse_uploaded_files(list_of_filenames, list_of_contents):
         raise UploadError("ERROR: Session file name is missing datetime.")
     
     try:
-        session_df = get_session_df(io.StringIO(decoded_list[session_idx]), session_uid, kw['user']['id'])
-        kw['session'] = [data._asdict() for data in session_df.itertuples(index=False)]  # Convert namedtuple to dict.
+        blocks_df = get_blocks_df(io.StringIO(decoded_list[blocks_file_idx]), session_uid, kw['user']['id'])
+        kw['blocks'] = [data._asdict() for data in blocks_df.itertuples(index=False)]  # Convert namedtuple to dict.
         
         kw['trials'] = get_trials_properties(list_of_filenames,
                                              decoded_list,
-                                             session_df['time_iso'],
-                                             session_df['block'],
-                                             session_df['hash'],
+                                             blocks_df['time_iso'],
+                                             blocks_df['nth_block'],
+                                             blocks_df['hash'],
                                              kw['user']['id'])
-    except UploadError:
-        raise
+    except (UploadError, KeyError):
+        raise UploadError("ERROR: Failed to parse data.")
     
     return kw
 
 
 def process_upload(filenames, contents):
-    """
+    """ First parse the uploaded data and then add it to the database.
     
     :param filenames: list of received file names.
     :type filenames: list
@@ -603,15 +620,43 @@ def process_upload(filenames, contents):
         raise
     
     try:
-        add_to_db(kw['device'], kw['user'], kw['session'], kw['trials'])
+        add_to_db(kw['device'], kw['user'], kw['blocks'], kw['trials'])
     except ModelCreationError:
         raise
+
+
+def records_to_df(store):
+    """ Convert records-style data to pandas DataFrame.
+    
+    :param store: Data from a dash_core_components.store component.
+    :type store: list[dict]
+    :return: Stored data as a DataFrame.
+    :rtype: pandas.DataFrame
+    """
+    df = pd.DataFrame(store)
+    # If the DataFrame is practically empty, delete everything except for the columns.
+    if df.isna().all().all():
+        df = df[0:0]
+    return df
+
+
+def df_to_records(df):
+    """ Convert pandas DataFrame to table compatible data aka records. If DataFrame is empty keep the columns.
+    
+    :type df: pandas.DataFrame
+    :rtype: list[dict]
+    """
+    if df.empty:
+        # Return column names in 'records' style.
+        return [{c: None for c in df.columns}]
+    return df.to_dict('records')
 
 
 ################
 # UI Callbacks #
 ################
 def register_callbacks(dashapp):
+    """ Defines all callbacks to UI events in the dashboard. """
     @dashapp.callback(Output('output-data-upload', 'children'),
                       [Input('upload-data', 'contents')],
                       [State('upload-data', 'filename'),
@@ -631,8 +676,11 @@ def register_callbacks(dashapp):
     @dashapp.callback([Output('datastore', 'data'),
                        Output('user-IDs', 'options')],
                       [Input('output-data-upload', 'children'),
-                       Input('refresh-btn', 'n_clicks')])
-    def update_datastore(upload_msg, refresh_clicks):
+                       Input('refresh-btn', 'n_clicks'),
+                       Input('date-picker-range', 'start_date'),
+                       Input('date-picker-range', 'end_date'),
+                       ])
+    def update_datastore(upload_msg, refresh_clicks, start_date, end_date):
         """ Get data from SQL DB and store in memory.
             Update dropdown options.
         """
@@ -643,20 +691,20 @@ def register_callbacks(dashapp):
             # Which component triggered the callback?
             comp_id = ctx.triggered[0]['prop_id'].split('.')[0]
         
-        if comp_id == 'output-data-upload':
+        if comp_id == 'output-data-upload':  # When uploading manually on the website.
             try:
                 # Query db on initial call when upload_msg is None or on successful upload.
                 if upload_msg is None or "Upload successful." in upload_msg[0].children:
-                    df = get_data()
+                    df = get_data(start_date, end_date)
                 else:
                     return dash.no_update, dash.no_update
             except (TypeError, AttributeError, IndexError):
                 return dash.no_update, dash.no_update
         else:
-            df = get_data()
+            df = get_data(start_date, end_date)
         users = [{'label': p, 'value': p} for p in df['user'].unique()]
         # Return to datastore and user options.
-        return df.to_dict('records'), users
+        return df_to_records(df), users
     
     @dashapp.callback([Output('trials-table', 'data'),
                        Output('trials-table', 'columns'),
@@ -665,42 +713,48 @@ def register_callbacks(dashapp):
                        Input('user-IDs', 'value'),
                        Input('contamination', 'value')])
     def set_table(stored_data, users_selected, contamination):
-        if not stored_data:
-            raise PreventUpdate
-        
-        df = pd.DataFrame(stored_data)
-        # Get oultier data.
+        """ Prepares stored data for display in the main table. Assesses outliers as well. """
+        df = records_to_df(stored_data)
+        # Get outlier data.
         if not contamination:
             contamination = 0.1
-        outliers, z = get_outlyingness(df[['df1', 'df2']].values, contamination=contamination)
+        try:
+            outliers, z = get_outlyingness(df[['df1', 'df2']].values, contamination=contamination)
+        except (KeyError, ValueError):
+            print("ERROR: Could not compute outliers. Missing columns in DataFrame.")
+            # Create data with no outliers.
+            outliers = np.array(False).repeat(df.shape[0])
+            z = np.ones((101, 101)).astype(int)
         df['outlier'] = outliers.astype(int)
         # Format table columns.
         columns = get_columns_settings(df)
         
         if not users_selected:
             # Return all the rows on initial load/no user selected.
-            return df.to_dict('records'), columns, z.tolist()
+            return df_to_records(df), columns, z.tolist()
         
         df[['user', 'block', 'constraint', 'outlier']] = df[['user', 'block', 'constraint', 'outlier']].astype(
             'category')
         filtered = df.query('`user` in @users_selected')
-        return filtered.to_dict('records'), columns, z.tolist()
+        return df_to_records(filtered), columns, z.tolist()
     
     @dashapp.callback(Output('pca-store', 'data'),
                       [Input('trials-table', 'derived_virtual_data')])
     def set_pca_store(table_data):
-        df = pd.DataFrame(table_data)
-        if df.empty:
-            return []
-        
-        df[['user', 'block', 'constraint']] = df[['user', 'block', 'constraint']].astype('category')
+        """ Save results of PCA into a store. """
+        df = records_to_df(table_data)
+        try:
+            df[['user', 'block', 'constraint']] = df[['user', 'block', 'constraint']].astype('category')
+        except KeyError:
+            raise PreventUpdate
         pca_df = get_pca_data(df)
-        return pca_df.to_dict('records')
+        return df_to_records(pca_df)
     
     @dashapp.callback(Output('barplot-pca', 'figure'),
                       [Input('pca-store', 'data')])
     def set_pca_plot(pca_data):
-        df = pd.DataFrame(pca_data)
+        """ Update bar-plot showing explained variance per principal component. """
+        df = records_to_df(pca_data)
         fig = generate_pca_figure(df)
         return fig
     
@@ -708,36 +762,42 @@ def register_callbacks(dashapp):
                        Output('pca-table', 'columns')],
                       [Input('pca-store', 'data')])
     def set_pca_angle_table(pca_data):
-        pca_df = pd.DataFrame(pca_data)
+        """ Update table for showing divergence between principal components and UCM vectors. """
+        pca_df = records_to_df(pca_data)
         ucm_vec = get_ucm_vec()
         angle_df = get_pc_ucm_angles(pca_df, ucm_vec)
         columns = get_pca_columns_settings(angle_df)
-        return angle_df.to_dict('records'), columns
+        return df_to_records(angle_df), columns
     
     @dashapp.callback([Output('proj-table', 'data'),
                        Output('proj-table', 'columns')],
                       [Input('trials-table', 'derived_virtual_data')])
     def set_proj_table(table_data):
-        if not table_data:
-            try:
-                return [], dash.no_update
-            except (TypeError, IndexError):
-                raise PreventUpdate
-        
-        df = pd.DataFrame(table_data)
-        df[['user', 'block', 'constraint']] = df[['user', 'block', 'constraint']].astype('category')
+        """ Calculate projections onto UCM parallel and orthogonal vectors and their descriptive statistics and put
+         the result into a table.
+         """
+        df = records_to_df(table_data)
+        try:
+            df[['user', 'block', 'constraint']] = df[['user', 'block', 'constraint']].astype('category')
+        except KeyError:
+            raise PreventUpdate
         
         ucm_vec = get_ucm_vec()
         df_proj = df[['block', 'df1', 'df2']].groupby('block').apply(get_projections, ucm_vec).abs()
+        if df_proj.empty:
+            df_proj['parallel'] = None
+            df_proj['orthogonal'] = None
         df_proj['block'] = df['block']
         
         # Get statistic characteristics of absolute lengths.
         df_stats = get_stats(df_proj, by='block')
+        #df_stats.insert(0, 'projection', df_stats.index)
+
         # For display in a simple table flatten Multiindex columns.
         df_stats.columns = [" ".join(col).strip() for col in df_stats.columns.to_flat_index()]
         # Get display settings for numeric cells.
         columns = get_columns_settings(df_stats)
-        return df_stats.to_dict('records'), columns
+        return df_to_records(df_stats), columns
     
     @dashapp.callback(Output('scatterplot-trials', 'figure'),
                       [Input('pca-store', 'data'),  # Delay update until PCA is through.
@@ -746,82 +806,65 @@ def register_callbacks(dashapp):
                        State('datastore', 'data'),
                        State('contour-store', 'data')])
     def on_pca_set_trial_graph(pca_data, show_pca, table_data, stored_data, contour):
-        if not table_data:
-            try:
-                columns = stored_data[0].keys()
-                df = pd.DataFrame(None, columns=columns)
-                return generate_trials_figure(df)
-            except (TypeError, IndexError):
-                return dash.no_update
-        
-        df = pd.DataFrame(table_data)
+        """ Update the graph for displaying trial data as scatter plot. """
+        df = records_to_df(table_data)
         z = np.array(contour)
         fig = generate_trials_figure(df, contour_data=z)
         
         # PCA visualisation.
         if 'Show' in show_pca:
-            pca_df = pd.DataFrame(pca_data)
+            pca_df = records_to_df(pca_data)
             arrows = get_pca_annotations(pca_df)
             fig.layout.update(annotations=arrows)
+            
         return fig
     
     @dashapp.callback([Output('histogram-dfs', 'figure'),
                        Output('histogram-sum', 'figure')],
                       [Input('trials-table', 'derived_virtual_data')],
-                      [State('datastore', 'data')])
-    def on_table_set_histograms(table_data, stored_data):
-        if not table_data:
-            try:
-                columns = stored_data[0].keys()
-                df = pd.DataFrame(None, columns=columns)
-                return generate_histograms(df[['df1', 'df2']]), generate_histograms(df[['sum']])
-            except (TypeError, IndexError, ValueError):
-                raise PreventUpdate
-        
-        df = pd.DataFrame(table_data)
-        fig = generate_histograms(df[['df1', 'df2']]), generate_histograms(df[['sum']])
+                      )
+    def on_table_set_histograms(table_data):
+        """ Update histograms when data in trials table changes. """
+        df = records_to_df(table_data)
+        try:
+            fig = generate_histograms(df[['df1', 'df2']]), generate_histograms(df[['sum']])
+        except KeyError:
+            raise PreventUpdate
         return fig
     
     @dashapp.callback([Output('corr-table', 'data'),
                        Output('corr-table', 'columns')],
                       [Input('trials-table', 'derived_virtual_data')])
     def set_corr_table(table_data):
-        if not table_data:
-            try:
-                return [], dash.no_update
-            except (TypeError, IndexError):
-                raise PreventUpdate
+        """ Update table showing Pearson correlations between degrees of freedom and their sum. """
+        df = records_to_df(table_data)
+        try:
+            corr = df[['df1', 'df2', 'sum']].corr()
+        except KeyError:
+            raise PreventUpdate
         
-        df = pd.DataFrame(table_data)
-        corr = df[['df1', 'df2', 'sum']].corr()
         corr.index.name = ''
         corr.reset_index(inplace=True)
         columns = get_columns_settings(corr)
-        return corr.to_dict('records'), columns
+        return df_to_records(corr), columns
     
     @dashapp.callback([Output('variance-table', 'data'),
                        Output('variance-table', 'columns')],
                       [Input('trials-table', 'derived_virtual_data')])
     def set_variance_table(table_data):
-        if not table_data:
-            return [], dash.no_update
-        
-        df = pd.DataFrame(table_data)
-        df[['user', 'block', 'constraint']] = df[['user', 'block', 'constraint']].astype('category')
+        """ Update table showing variances of dependent and in independent variables. """
+        df = records_to_df(table_data)
+        try:
+            df[['user', 'block', 'constraint']] = df[['user', 'block', 'constraint']].astype('category')
+        except KeyError:
+            raise PreventUpdate
         variances = get_descriptive_stats(df)
         columns = get_columns_settings(variances)
-        return variances.to_dict('records'), columns
+        return df_to_records(variances), columns
     
     @dashapp.callback(Output('barplot-variance', 'figure'),
                       [Input('variance-table', 'derived_virtual_data')])
     def on_table_set_variance_graph(table_data):
-        if not table_data:
-            try:
-                columns = ['user', 'block', 'constraint', 'df1 mean', 'df2 mean', 'sum mean', 'sum var']
-                df = pd.DataFrame(None, columns=columns)
-                return generate_variance_figure(df)
-            except (TypeError, IndexError):
-                return dash.no_update
-        
-        df = pd.DataFrame(table_data)
+        """ Update graph showing variances of dependent and in independent variables. """
+        df = records_to_df(table_data)
         return generate_variance_figure(df)

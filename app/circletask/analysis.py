@@ -1,43 +1,72 @@
+from datetime import datetime, timedelta
+import itertools
+
 import pandas as pd
 import numpy as np
 from sklearn.decomposition import PCA
 from sklearn.covariance import EllipticEnvelope
+from sqlalchemy import and_
 
 from app.extensions import db
+from app.models import CircleTaskBlock, CircleTaskTrial
 
 
-def get_data():
+def get_data(start_date=None, end_date=None):
     """ Queries database for data an merges to a Dataframe. """
-    # This is considered temporary.
-    trials_df = pd.read_sql_table('circle_tasks', db.engine)
-    user_df = pd.read_sql_table('users', db.engine)
-    # Use users index instead of id for obfuscation.
-    user_inv_map = {v: k for k, v in user_df.id.iteritems()}
-    trials_df.insert(0, 'user', trials_df.user_id.map(user_inv_map))
-    # Get blocks.
-    session_df = pd.read_sql_table('ct_sessions', db.engine)
-    block_map = dict(session_df[['id', 'block']].to_dict('split')['data'])
-    trials_df.insert(1, 'block', trials_df['session'].map(block_map))
-    treatment_map = dict(session_df[['id', 'treatment']].to_dict('split')['data'])
-    trials_df.insert(2, 'constraint', trials_df['session'].map(treatment_map))
+    # Get data in time period.
+    if not start_date and not end_date:
+        blocks_df = pd.read_sql_table('circletask_blocks', db.engine, index_col='id')
+    elif start_date and not end_date:
+        query_stmt = db.session.query(CircleTaskBlock).filter(CircleTaskBlock.time_iso >= start_date).statement
+        blocks_df = pd.read_sql_query(query_stmt, db.engine, index_col='id')
+    else:
+        # end_date's daytime is set to the start of the day (00:00:00), but we want the end of the day.
+        end_date = datetime.fromisoformat(end_date) + timedelta(days=1)
+        query_stmt = db.session.query(CircleTaskBlock).filter(and_(CircleTaskBlock.time_iso >= start_date,
+                                                                   CircleTaskBlock.time_iso < end_date)).statement
+        blocks_df = pd.read_sql_query(query_stmt, db.engine, index_col='id')
+    
+    users_df = pd.read_sql_table('users', db.engine)
+    # Use users' index instead of id for obfuscation and shorter display.
+    users_inv_map = pd.Series(users_df.index, index=users_df.id)
+    # Read only trials from blocks we loaded.
+    query_stmt = db.session.query(CircleTaskTrial).filter(CircleTaskTrial.block_id.in_(blocks_df.index)).statement
+    trials_df = pd.read_sql_query(query_stmt, db.engine, index_col='id')
+    # Now insert some data from other tables.
+    trials_df.insert(0, 'user', trials_df.user_id.map(users_inv_map))
+    trials_df.insert(1, 'session', trials_df['block_id'].map(blocks_df['nth_session']))
+    trials_df.insert(2, 'block', trials_df['block_id'].map(blocks_df['nth_block']))
+    trials_df.insert(3, 'constraint', trials_df['block_id'].map(blocks_df['treatment']))
+    trials_df[['user', 'session', 'block', 'constraint']] = trials_df[['user', 'session',
+                                                                       'block', 'constraint']].astype('category')
     # Exclude columns.
-    trials_df.drop(columns=['id', 'user_id', 'session'], inplace=True)
-    trials_df[['user', 'block', 'constraint']] = trials_df[['user', 'block', 'constraint']].astype('category')
+    trials_df.drop(columns=['user_id', 'session', 'block_id'], inplace=True)
     return trials_df
 
 
 def get_descriptive_stats(dataframe):
-    """
+    """ Get descriptive statistics from trial data.
     
     :param dataframe: Data
     :type dataframe: pandas.Dataframe
     :return: Means, variances for df1, df2 and their sum.
+    :rtype: pandas.DataFrame
     """
-    grouped = dataframe.groupby(['user', 'block', 'constraint'])
-    variances = grouped.agg({'df1': ['mean', 'var'], 'df2': ['mean', 'var'], 'sum': ['mean', 'var']})
+    vars = ['df1', 'df2', 'sum']
+    group_vars = ['user', 'block', 'constraint']
+    agg_funcs = ['mean', 'var']
+    try:
+        grouped = dataframe.groupby(group_vars)
+        variances = grouped.agg({v: agg_funcs for v in vars})
+    except KeyError:
+        raise
+    except pd.core.base.DataError:
+        # Create empty DataFrame with columns.
+        return pd.DataFrame(None, columns=group_vars + [" ".join(i) for i in itertools.product(vars, agg_funcs)])
+    
     variances.columns = [" ".join(x) for x in variances.columns.ravel()]
-    variances.dropna(inplace=True)
     variances.columns = [x.strip() for x in variances.columns]
+    variances.dropna(inplace=True)
     variances.reset_index(inplace=True)
     return variances
 
@@ -245,10 +274,21 @@ def get_stats(data, by=None):
     :return: Dataframe with columns mean, var, count and column names of data as rows.
     :rtype: pandas.Dataframe
     """
+    # When there're no data, return empty DataFrame with columns.
+    if data.empty:
+        idx = pd.MultiIndex.from_product([data.columns, ['mean', 'var']])
+        stats = pd.DataFrame(None, columns=idx)
+        stats['count'] = None
+        try:
+            stats.drop(by, axis='columns', level=0, inplace=True)
+            stats.insert(0, by, None)
+        except (ValueError, KeyError):
+            pass
+        return stats
+    
     if not by:
         stats = data.agg(['mean', 'var', 'count']).T
         stats['count'] = stats['count'].astype(int)
-        stats.insert(0, 'projection', stats.index)
     else:
         grouped = data.groupby(by)
         stats = grouped.agg(['mean', 'var'])
@@ -256,6 +296,6 @@ def get_stats(data, by=None):
         stats.reset_index(inplace=True)
     return stats
     
-    
-# ToDo: Correlation matrix. Note, that there is a reciprocal suppression: r(sum,df1) > 0, r(sum, df2)>0, r(df1,df2)<0
 # ToDo: distribution of residuals.
+# ToDo: Exclude non-overlapping grabs
+# ToDo: describe, visualize grab data

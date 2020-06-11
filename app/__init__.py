@@ -76,7 +76,7 @@ def register_dashapp(app,
 def register_extensions(server):
     from app.extensions import db
     # We need to import the models for migration to detect them.
-    from app.models import Device, User, CTSession, CircleTask
+    from app.models import Device, User, CircleTaskBlock, CircleTaskTrial
     from app.extensions import migrate
 
     db.init_app(server)

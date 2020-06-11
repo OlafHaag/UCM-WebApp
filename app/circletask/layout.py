@@ -1,5 +1,6 @@
 """ This module contains all the dash components visible to the user and composes them to a layout. """
 from pathlib import Path
+from datetime import datetime
 
 import dash_core_components as dcc
 import dash_html_components as html
@@ -81,6 +82,20 @@ def generate_upload_component(upload_id):
                                # Allow multiple files to be uploaded
                                multiple=True)
     return upload_widget
+
+
+def generate_daterange_picker():
+    date_picker = html.Div([
+        html.Div([html.Label('Date range:')], style={'marginInline': '5px', 'display': 'inline-block'}),
+        dcc.DatePickerRange(
+            id='date-picker-range',
+            min_date_allowed=datetime(2020, 6, 5),
+            initial_visible_month=datetime(2020, 6, 5),
+            display_format='MMM Do, YYYY',
+            start_date=datetime(2020, 6, 5).date(),
+        ),
+    ], style={'display': 'inline-block', 'margin': '0 3rem'})
+    return date_picker
 
 
 def generate_user_select(dataframe):
@@ -552,10 +567,12 @@ def create_content():
     # ToDo: Hint that you can hide/show items by clicking/dbl-clicking the legend.
 
     trials_graph = html.Div(className='six columns',
-                            children=[html.Button(id='refresh-btn',
-                                                  n_clicks=0,
-                                                  children='Refresh from DB',
-                                                  style={'marginBottom': '3rem'}),
+                            children=[html.Div([html.Button(id='refresh-btn',
+                                                            n_clicks=0,
+                                                            children='Refresh from DB',
+                                                            ),
+                                                generate_daterange_picker(),
+                                                ], style={'marginBottom': '3rem'}),
                                       html.Div(className='pretty_container',
                                                children=[
                                                    dcc.Graph(id='scatterplot-trials', style={'height': theme['height']})
