@@ -11,7 +11,8 @@ Analyze and visualize data produced by the [NeuroPsy Research App](https://githu
 * Use Pipenv to create virtual environment
     * Use provided Pipfile
 * For development, you need to install less compiler `npm install -g less`.
- Or use the slower [lesscpy](https://github.com/lesscpy/lesscpy) with [flask_less](https://github.com/mrf345/flask_less/)
+ Make sure, you have the npm directory on your PATH, e.g. in PyCharms _Run/DebugConfigurations_.   
+ Or use the slower [lesscpy](https://github.com/lesscpy/lesscpy) with [flask_less](https://github.com/mrf345/flask_less/).
  
 ### PostgreSQL
 This app uses a PostgreSQL Database on Heroku.  
