@@ -20,27 +20,13 @@ from psycopg2.extensions import register_adapter, AsIs
 from app.extensions import db
 from app.models import Device, User, CircleTaskBlock, CircleTaskTrial
 from .exceptions import UploadError, ModelCreationError
-from .analysis import (get_data,
-                       get_valid_trials,
-                       get_descriptive_stats,
-                       get_pca_data,
-                       get_ucm_vec,
-                       get_pc_ucm_angles,
-                       get_outlyingness,
-                       get_projections,
-                       get_stats)
-from .layout import (generate_trials_figure,
-                     generate_histograms,
-                     generate_variance_figure,
-                     get_pca_annotations,
-                     generate_pca_figure,
-                     get_pca_columns_settings,
-                     get_columns_settings)
+from . import analysis
+from . import layout
 
 # Numpy data types compatibility with postgresql database.
 register_adapter(np.int64, AsIs)
 register_adapter(np.float64, AsIs)
-
+# Describe time format that we get, e.g. in file names, so we can convert it to datetime.
 time_fmt = '%Y_%m_%d_%H_%M_%S'
 
 
@@ -697,15 +683,15 @@ def register_callbacks(dashapp):
             try:
                 # Query db on initial call when upload_msg is None or on successful upload.
                 if upload_msg is None or "Upload successful." in upload_msg[0].children:
-                    df = get_data(start_date, end_date)
+                    df = analysis.get_data(start_date, end_date)
                 else:
                     return (dash.no_update,) * 3
             except (TypeError, AttributeError, IndexError):
                 return (dash.no_update,) * 3
         else:
-            df = get_data(start_date, end_date)
+            df = analysis.get_data(start_date, end_date)
         # Remove invalid trials.
-        df_adjusted = get_valid_trials(df)
+        df_adjusted = analysis.get_valid_trials(df)
         n_removed = len(df) - len(df_adjusted)
         removal_msg = f"{n_removed} trials have been removed from the selected time period due to incorrect execution."\
                       + bool(n_removed) * " Sliders were either not used concurrently or not used at all."
@@ -725,7 +711,7 @@ def register_callbacks(dashapp):
         if not contamination:
             contamination = 0.1
         try:
-            outliers, z = get_outlyingness(df[['df1', 'df2']].values, contamination=contamination)
+            outliers, z = analysis.get_outlyingness(df[['df1', 'df2']].values, contamination=contamination)
         except (KeyError, ValueError):
             print("ERROR: Could not compute outliers. Missing columns in DataFrame.")
             # Create data with no outliers.
@@ -733,7 +719,7 @@ def register_callbacks(dashapp):
             z = np.ones((101, 101)).astype(int)
         df['outlier'] = outliers.astype(int)
         # Format table columns.
-        columns = get_columns_settings(df)
+        columns = layout.get_columns_settings(df)
         
         if not users_selected:
             # Return all the rows on initial load/no user selected.
@@ -753,7 +739,7 @@ def register_callbacks(dashapp):
             df[['user', 'block', 'constraint']] = df[['user', 'block', 'constraint']].astype('category')
         except KeyError:
             raise PreventUpdate
-        pca_df = get_pca_data(df)
+        pca_df = analysis.get_pca_data(df)
         return df_to_records(pca_df)
     
     @dashapp.callback(Output('barplot-pca', 'figure'),
@@ -761,7 +747,7 @@ def register_callbacks(dashapp):
     def set_pca_plot(pca_data):
         """ Update bar-plot showing explained variance per principal component. """
         df = records_to_df(pca_data)
-        fig = generate_pca_figure(df)
+        fig = layout.generate_pca_figure(df)
         return fig
     
     @dashapp.callback([Output('pca-table', 'data'),
@@ -770,9 +756,9 @@ def register_callbacks(dashapp):
     def set_pca_angle_table(pca_data):
         """ Update table for showing divergence between principal components and UCM vectors. """
         pca_df = records_to_df(pca_data)
-        ucm_vec = get_ucm_vec()
-        angle_df = get_pc_ucm_angles(pca_df, ucm_vec)
-        columns = get_pca_columns_settings(angle_df)
+        ucm_vec = analysis.get_ucm_vec()
+        angle_df = analysis.get_pc_ucm_angles(pca_df, ucm_vec)
+        columns = layout.get_pca_columns_settings(angle_df)
         return df_to_records(angle_df), columns
     
     @dashapp.callback([Output('proj-table', 'data'),
@@ -788,21 +774,21 @@ def register_callbacks(dashapp):
         except KeyError:
             raise PreventUpdate
         
-        ucm_vec = get_ucm_vec()
-        df_proj = df[['block', 'df1', 'df2']].groupby('block').apply(get_projections, ucm_vec).abs()
+        ucm_vec = analysis.get_ucm_vec()
+        df_proj = df[['block', 'df1', 'df2']].groupby('block').apply(analysis.get_projections, ucm_vec).abs()
         if df_proj.empty:
             df_proj['parallel'] = None
             df_proj['orthogonal'] = None
         df_proj['block'] = df['block']
         
         # Get statistic characteristics of absolute lengths.
-        df_stats = get_stats(df_proj, by='block')
+        df_stats = analysis.get_stats(df_proj, by='block')
         #df_stats.insert(0, 'projection', df_stats.index)
 
         # For display in a simple table flatten Multiindex columns.
         df_stats.columns = [" ".join(col).strip() for col in df_stats.columns.to_flat_index()]
         # Get display settings for numeric cells.
-        columns = get_columns_settings(df_stats)
+        columns = layout.get_columns_settings(df_stats)
         return df_to_records(df_stats), columns
     
     @dashapp.callback(Output('scatterplot-trials', 'figure'),
@@ -815,12 +801,12 @@ def register_callbacks(dashapp):
         """ Update the graph for displaying trial data as scatter plot. """
         df = records_to_df(table_data)
         z = np.array(contour)
-        fig = generate_trials_figure(df, contour_data=z)
+        fig = layout.generate_trials_figure(df, contour_data=z)
         
         # PCA visualisation.
         if 'Show' in show_pca:
             pca_df = records_to_df(pca_data)
-            arrows = get_pca_annotations(pca_df)
+            arrows = layout.get_pca_annotations(pca_df)
             fig.layout.update(annotations=arrows)
             
         return fig
@@ -833,7 +819,7 @@ def register_callbacks(dashapp):
         """ Update histograms when data in trials table changes. """
         df = records_to_df(table_data)
         try:
-            fig = generate_histograms(df[['df1', 'df2']]), generate_histograms(df[['sum']])
+            fig = layout.generate_histograms(df[['df1', 'df2']]), layout.generate_histograms(df[['sum']])
         except KeyError:
             raise PreventUpdate
         return fig
@@ -851,7 +837,7 @@ def register_callbacks(dashapp):
         
         corr.index.name = ''
         corr.reset_index(inplace=True)
-        columns = get_columns_settings(corr)
+        columns = layout.get_columns_settings(corr)
         return df_to_records(corr), columns
     
     @dashapp.callback([Output('variance-table', 'data'),
@@ -864,8 +850,8 @@ def register_callbacks(dashapp):
             df[['user', 'block', 'constraint']] = df[['user', 'block', 'constraint']].astype('category')
         except KeyError:
             raise PreventUpdate
-        variances = get_descriptive_stats(df)
-        columns = get_columns_settings(variances)
+        variances = analysis.get_descriptive_stats(df)
+        columns = layout.get_columns_settings(variances)
         return df_to_records(variances), columns
     
     @dashapp.callback(Output('barplot-variance', 'figure'),
@@ -873,4 +859,4 @@ def register_callbacks(dashapp):
     def on_table_set_variance_graph(table_data):
         """ Update graph showing variances of dependent and in independent variables. """
         df = records_to_df(table_data)
-        return generate_variance_figure(df)
+        return layout.generate_variance_figure(df)
