@@ -44,6 +44,22 @@ def get_data(start_date=None, end_date=None):
     return trials_df
 
 
+def get_valid_trials(dataframe):
+    """ Remove trials where sliders where not grabbed concurrently or grabbed at all.
+    
+    :param dataframe: Trial data.
+    :type dataframe: pandas.DataFrame
+    :return: Filtered trials.
+    :rtype: pandas.DataFrame
+    """
+    # Remove trials with missing values. This means at least one slider wasn't grabbed.
+    df = dataframe.dropna(axis='index', how='any')
+    # Remove trials where sliders where not grabbed concurrently.
+    mask = ~((df['df1_release'] <= df['df2_grab']) | (df['df2_release'] <= df['df1_grab']))
+    df = df[mask]
+    return df
+    
+    
 def get_descriptive_stats(dataframe):
     """ Get descriptive statistics from trial data.
     
@@ -91,7 +107,7 @@ def get_mean_x_by(dataframe, x, by=None):
 
 
 def get_pca_data(dataframe):
-    """
+    """ Conduct Principal Component Analysis on 2D dataset.
     
     :param dataframe: Data holding 'df1' and 'df2' values as columns.
     :type dataframe: pandas.DataFrame
@@ -121,7 +137,7 @@ def get_pca_data(dataframe):
 
 
 def get_pca_vectors(dataframe):
-    """
+    """ Get principal components for as vectors. Vectors can then be used to annotate graphs.
     
     :param dataframe: Tabular PCA data.
     :type dataframe: pandas.DataFrame
@@ -141,7 +157,7 @@ def get_pca_vectors(dataframe):
 
 
 def get_pca_vectors_by(dataframe, by=None):
-    """
+    """ Get principal components for each group as vectors. Vectors can then be used to annotate graphs.
 
     :param dataframe: Data holding 'df1' and 'df2' values as columns.
     :type dataframe: pandas.DataFrame
@@ -227,6 +243,16 @@ def get_pc_ucm_angles(dataframe, vec_ucm):
 
 
 def get_outlyingness(data, contamination=0.1):
+    """ Outlier detection from covariance estimation in a Gaussian distributed dataset.
+    
+    :param data: Data in which to detect outliers. Take care that n_samples > n_features ** 2 .
+    :type data: pandas.DataFrame
+    :param contamination: The amount of contamination of the data set, i.e. the proportion of outliers in the data set.
+    Range is (0, 0.5).
+    :type contamination: float
+    :returns: Decision on each row if it's an outlier. And contour array for drawing ellipse in graph.
+    :rtype: tuple[numpy.ndarray, numpy.ndarray]
+    """
     robust_cov = EllipticEnvelope(support_fraction=1., contamination=contamination)
     outlyingness = robust_cov.fit_predict(data)
     decision = (outlyingness-1).astype(bool)

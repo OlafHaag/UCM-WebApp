@@ -685,7 +685,7 @@ def create_content():
         
         # Figures and Tables.
         html.Div(style={'textAlign': 'left'},
-                 children=[*dash_row(trials_graph, trials_table),
+                 children=[*dash_row(trials_graph, trials_table, html.P(id='removal-hint', className='six columns')),
                            *dash_row(hist_graph_dfs, hist_graph_sum),
                            *dash_row(corr_table),
                            *dash_row(pca_graph, pca_table),

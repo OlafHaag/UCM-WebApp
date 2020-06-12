@@ -21,6 +21,7 @@ from app.extensions import db
 from app.models import Device, User, CircleTaskBlock, CircleTaskTrial
 from .exceptions import UploadError, ModelCreationError
 from .analysis import (get_data,
+                       get_valid_trials,
                        get_descriptive_stats,
                        get_pca_data,
                        get_ucm_vec,
@@ -674,7 +675,8 @@ def register_callbacks(dashapp):
             return [html.Div("Upload successful.")]
     
     @dashapp.callback([Output('datastore', 'data'),
-                       Output('user-IDs', 'options')],
+                       Output('user-IDs', 'options'),
+                       Output('removal-hint', 'children')],
                       [Input('output-data-upload', 'children'),
                        Input('refresh-btn', 'n_clicks'),
                        Input('date-picker-range', 'start_date'),
@@ -697,14 +699,18 @@ def register_callbacks(dashapp):
                 if upload_msg is None or "Upload successful." in upload_msg[0].children:
                     df = get_data(start_date, end_date)
                 else:
-                    return dash.no_update, dash.no_update
+                    return (dash.no_update,) * 3
             except (TypeError, AttributeError, IndexError):
-                return dash.no_update, dash.no_update
+                return (dash.no_update,) * 3
         else:
             df = get_data(start_date, end_date)
+        # Remove invalid trials.
+        df_adjusted = get_valid_trials(df)
+        n_removed = len(df) - len(df_adjusted)
+        removal_msg = f"{n_removed} trials have been removed from the selected time period due to incorrect execution."\
+                      + bool(n_removed) * " Sliders were either not used concurrently or not used at all."
         users = [{'label': p, 'value': p} for p in df['user'].unique()]
-        # Return to datastore and user options.
-        return df_to_records(df), users
+        return df_to_records(df_adjusted), users, removal_msg
     
     @dashapp.callback([Output('trials-table', 'data'),
                        Output('trials-table', 'columns'),
