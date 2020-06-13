@@ -1,10 +1,11 @@
+# Built-in imports
 import io
 import base64
 from datetime import datetime
 from collections import namedtuple
 from hashlib import md5
 from contextlib import suppress, wraps
-
+# Third-party module imports.
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.exc import IntegrityError
 
@@ -16,7 +17,7 @@ from dash.exceptions import PreventUpdate
 import pandas as pd
 import numpy as np
 from psycopg2.extensions import register_adapter, AsIs
-
+# Own module imports.
 from app.extensions import db
 from app.models import Device, User, CircleTaskBlock, CircleTaskTrial
 from .exceptions import UploadError, ModelCreationError
@@ -28,6 +29,8 @@ register_adapter(np.int64, AsIs)
 register_adapter(np.float64, AsIs)
 # Describe time format that we get, e.g. in file names, so we can convert it to datetime.
 time_fmt = '%Y_%m_%d_%H_%M_%S'
+# Set pandas plotting backend to ploty. Requires plotly >= 4.8.0.
+pd.options.plotting.backend = 'plotly'
 
 
 ####################
@@ -730,6 +733,19 @@ def register_callbacks(dashapp):
         filtered = df.query('`user` in @users_selected')
         return df_to_records(filtered), columns, z.tolist()
     
+    @dashapp.callback(Output('filtered-hint', 'children'),
+                      [Input('trials-table', 'derived_virtual_data')],
+                      [State('trials-table', 'data')])
+    def on_table_filter(table_data_filtered, table_data):
+        """ Update message about removed trials by filtering. """
+        # Check if there even is data. The empty dataset has 1 row with all None.
+        if len(table_data) == 1 and all(tuple(table_data[0].values())):
+            n_filtered = 0
+        else:
+            n_filtered = len(table_data) - len(table_data_filtered)
+        filtered_msg = bool(n_filtered) * f" {n_filtered} trials were removed by filters set in the table."
+        return filtered_msg
+    
     @dashapp.callback(Output('pca-store', 'data'),
                       [Input('trials-table', 'derived_virtual_data')])
     def set_pca_store(table_data):
@@ -810,19 +826,32 @@ def register_callbacks(dashapp):
             fig.layout.update(annotations=arrows)
             
         return fig
+
+    @dashapp.callback([Output('onset-dfs', 'figure'),
+                       Output('duration-dfs', 'figure')],
+                      [Input('trials-table', 'derived_virtual_data')])
+    def on_table_set_violinplot(table_data):
+        """ Update histograms when data in trials table changes. """
+        df = records_to_df(table_data)
+        try:
+            fig_onset = layout.generate_grab_figure(df, 'grab')
+            fig_duration = layout.generate_grab_figure(df, 'duration')
+        except KeyError:
+            raise PreventUpdate
+        return fig_onset, fig_duration
     
     @dashapp.callback([Output('histogram-dfs', 'figure'),
                        Output('histogram-sum', 'figure')],
-                      [Input('trials-table', 'derived_virtual_data')],
-                      )
+                      [Input('trials-table', 'derived_virtual_data')])
     def on_table_set_histograms(table_data):
         """ Update histograms when data in trials table changes. """
         df = records_to_df(table_data)
         try:
-            fig = layout.generate_histograms(df[['df1', 'df2']]), layout.generate_histograms(df[['sum']])
+            fig_dfs = layout.generate_histograms(df[['df1', 'df2']])
+            fig_sum = layout.generate_histograms(df[['sum']])
         except KeyError:
             raise PreventUpdate
-        return fig
+        return fig_dfs, fig_sum
     
     @dashapp.callback([Output('corr-table', 'data'),
                        Output('corr-table', 'columns')],
