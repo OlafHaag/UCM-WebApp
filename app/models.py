@@ -77,7 +77,7 @@ class CircleTaskBlock(db.Model):
     nth_block = db.Column(db.Integer, unique=False, nullable=True, default=1,
                           comment="Chronological order of a block within a session.")
     treatment = db.Column(db.String(120), unique=False, nullable=True,
-                          comment="Which degree of freedom had a constraint on it during a block.")
+                         comment="Which degree of freedom had a constraint on it during a block. Independent variable.")
     warm_up = db.Column(db.Float, unique=False, nullable=False, default=0.5,
                         comment="Time before each trial to prepare, in seconds.")
     trial_duration = db.Column(db.Float, unique=False, nullable=False, default=2.0,
@@ -118,9 +118,9 @@ class CircleTaskTrial(db.Model):
     # but have to go through block_id.
     trial = db.Column(db.Integer, unique=False, nullable=False, comment="Chronological order of trial within a block.")
     df1 = db.Column(db.Float, unique=False, nullable=True,
-                    comment="Value of degree of freedom 1 at end of trial. Independent Variable.")
+                    comment="Value of degree of freedom 1 at end of trial. Dependent variable.")
     df2 = db.Column(db.Float, unique=False, nullable=True,
-                    comment="Value of degree of freedom 2 at end of trial. Independent Variable.")
+                    comment="Value of degree of freedom 2 at end of trial. Dependent variable.")
     df1_grab = db.Column(db.Float, unique=False, nullable=True,
                          comment="Delta time in seconds after trial onset at which df1 slider was grabbed.")
     df1_release = db.Column(db.Float, unique=False, nullable=True,
@@ -134,7 +134,7 @@ class CircleTaskTrial(db.Model):
                                     "by the user or by the end of the countdown.")
     df2_duration = db.Column(db.Float, unique=False, nullable=True, comment="Duration of the df2 grab, in seconds.")
     sum = db.Column(db.Float, unique=False, nullable=True,
-                    comment="Sum of values for df1 and df2 at end of trial. This is the dependent variable.")
+                    comment="Sum of values for df1 and df2 at end of trial. Dependent variable.")
 
     def __init__(self, **kwargs):
         super(CircleTaskTrial, self).__init__(**kwargs)
