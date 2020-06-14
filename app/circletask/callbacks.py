@@ -735,15 +735,23 @@ def register_callbacks(dashapp):
     
     @dashapp.callback(Output('filtered-hint', 'children'),
                       [Input('trials-table', 'derived_virtual_data')],
-                      [State('trials-table', 'data')])
-    def on_table_filter(table_data_filtered, table_data):
+                      [State('trials-table', 'data'),
+                       State('trials-table', 'filter_query')])
+    def on_table_filter(table_data_filtered, table_data, query):
         """ Update message about removed trials by filtering. """
         # Check if there even is data. The empty dataset has 1 row with all None.
-        if len(table_data) == 1 and all(tuple(table_data[0].values())):
+        try:
+            if len(table_data) == 1 and np.isnan(np.array(tuple(table_data[0].values()), dtype=np.float)).all():
+                n_filtered = 0
+            else:
+                n_filtered = len(table_data) - len(table_data_filtered)
+        except (TypeError, AttributeError):
             n_filtered = 0
-        else:
-            n_filtered = len(table_data) - len(table_data_filtered)
-        filtered_msg = bool(n_filtered) * f" {n_filtered} trials were removed by filters set in the table."
+        try:
+            filter = query.replace('{', '').replace('}', '')
+        except AttributeError:
+            filter = ""
+        filtered_msg = bool(n_filtered) * f" {n_filtered} trials were removed by filters set in the table ({filter})."
         return filtered_msg
     
     @dashapp.callback(Output('pca-store', 'data'),
