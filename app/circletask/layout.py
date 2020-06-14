@@ -415,7 +415,7 @@ def generate_variance_figure(dataframe):
     """
     if dataframe.empty:
         fig = go.Figure()
-        fig.layout.update(yaxis={'title': 'Variance'})
+        fig.layout.update(yaxis_title='Variance', xaxis_title='Block', margin=theme['graph_margins'],)
         return fig
 
     blocks = dataframe['block'].unique()
@@ -508,13 +508,15 @@ def get_columns_settings(dataframe):
     """
     columns = list()
     for c in dataframe.columns:
+        # Nicer column names.
+        label = c.replace("_", " ").title().replace("Df1", "df1").replace("Df2", "df2")
         if dataframe[c].dtype == 'float':
-            columns.append({'name': c,
+            columns.append({'name': label,
                             'id': c,
                             'type': 'numeric',
                             'format': Format(precision=2, scheme=Scheme.fixed)})
         else:
-            columns.append({'name': c, 'id': c})
+            columns.append({'name': label, 'id': c})
     return columns
 
 
