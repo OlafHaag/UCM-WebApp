@@ -40,7 +40,7 @@ def get_data(start_date=None, end_date=None):
     trials_df[['user', 'session', 'block', 'constraint']] = trials_df[['user', 'session',
                                                                        'block', 'constraint']].astype('category')
     # Exclude columns.
-    trials_df.drop(columns=['user_id', 'session', 'block_id'], inplace=True)
+    trials_df.drop(columns=['user_id', 'block_id'], inplace=True)
     return trials_df
 
 
@@ -323,5 +323,3 @@ def get_stats(data, by=None):
     return stats
     
 # ToDo: distribution of residuals.
-# ToDo: Exclude non-overlapping grabs
-# ToDo: describe, visualize grab data

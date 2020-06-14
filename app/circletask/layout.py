@@ -574,13 +574,16 @@ def generate_table(dataframe, table_id):
         },
         style_cell_conditional=[
             {'if': {'column_id': 'user'},
-             'width': '10%'},
+             'width': '5%'},
+            {'if': {'column_id': 'session'},
+             'width': '8%'},
             {'if': {'column_id': 'block'},
-             'width': '10%'},
+             'width': '5%'},
             {'if': {'column_id': 'constraint'},
-             'width': '10%'},
-            #{'if': {'column_id': 'outlier'},
-            # 'display': 'none'}
+             'width': '8%'},
+            {'if': {'column_id': 'outlier'},
+            # 'display': 'none',
+             'width': '7%'},
         ],
         style_data={'border': '0px'},
         style_data_conditional=[
