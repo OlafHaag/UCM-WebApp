@@ -876,7 +876,8 @@ def register_callbacks(dashapp):
             fig_dfs = layout.generate_histograms(df[['df1', 'df2']])
             fig_sum = layout.generate_histograms(df[['sum']])
         except KeyError:
-            raise PreventUpdate
+            fig = layout.generate_histograms(pd.DataFrame())
+            return fig, fig
         return fig_dfs, fig_sum
     
     @dashapp.callback([Output('corr-table', 'data'),
@@ -885,11 +886,14 @@ def register_callbacks(dashapp):
     def set_corr_table(table_data):
         """ Update table showing Pearson correlations between degrees of freedom and their sum. """
         df = records_to_df(table_data)
+        correlates = ['df1', 'df2', 'sum']
         try:
-            corr = df[['df1', 'df2', 'sum']].corr()
+            corr = df[correlates].corr()
         except KeyError:
-            raise PreventUpdate
-        
+            corr = pd.DataFrame(columns=correlates, index=correlates)
+        if df.empty:
+            corr = pd.DataFrame(columns=correlates, index=correlates)
+            
         corr.index.name = ''
         corr.reset_index(inplace=True)
         columns = layout.get_columns_settings(corr)
@@ -905,7 +909,6 @@ def register_callbacks(dashapp):
             df[['user', 'block', 'constraint']] = df[['user', 'block', 'constraint']].astype('category')
         except KeyError:
             pass
-            #raise PreventUpdate
         variances = analysis.get_descriptive_stats(df)
         columns = layout.get_columns_settings(variances)
         return df_to_records(variances), columns
