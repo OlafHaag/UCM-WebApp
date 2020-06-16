@@ -824,8 +824,9 @@ def register_callbacks(dashapp):
         df_proj['block'] = df['block']  # FixMe: We need projection length for RM ANOVA. Split function in 2.
         
         # Get statistic characteristics of absolute lengths.
-        df_stats = analysis.get_stats(df_proj, by='block')  # FixMe: Avg length, instead of mean, which is 0.
-        #df_stats.insert(0, 'projection', df_stats.index)
+        df_stats = analysis.get_stats(df_proj, by='block')
+        # Mean is 0, so we don't need to show it.
+        df_stats.drop('mean', axis='columns', level=1, inplace=True)
 
         # For display in a simple table flatten Multiindex columns.
         df_stats.columns = [" ".join(col).strip() for col in df_stats.columns.to_flat_index()]

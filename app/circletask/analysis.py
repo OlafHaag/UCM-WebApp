@@ -289,6 +289,17 @@ def get_projections(points, vec_ucm):
     return coeffs
 
 
+def abs_average(series):
+    """ Aggregate function for returning the mean of absolute values in the series.
+    
+    :param series: Data to get average of absolutes.
+    :type series: pandas.Series
+    :return: Average of absolute values.
+    :rtype: float
+    """
+    return series.abs().mean()
+
+
 def get_stats(data, by=None):
     """ Return mean and variance statistics for data.
     
@@ -301,7 +312,7 @@ def get_stats(data, by=None):
     """
     # When there're no data, return empty DataFrame with columns.
     if data.empty:
-        idx = pd.MultiIndex.from_product([data.columns, ['mean', 'var']])
+        idx = pd.MultiIndex.from_product([data.columns, ['avg', 'mean', 'var']])
         stats = pd.DataFrame(None, columns=idx)
         stats['count'] = None
         try:
@@ -312,13 +323,15 @@ def get_stats(data, by=None):
         return stats
     
     if not by:
-        stats = data.agg(['mean', 'var', 'count']).T
+        stats = data.agg([abs_average, 'mean', 'var', 'count']).T
+        stats.rename({'var': 'variance', 'abs_average': 'absolute average'}, axis='columns', inplace=True)
         stats['count'] = stats['count'].astype(int)
     else:
         grouped = data.groupby(by)
-        stats = grouped.agg(['mean', 'var'])
+        stats = grouped.agg([abs_average, 'mean', 'var'])
         stats['count'] = grouped.size()
+        stats.rename({'var': 'variance', 'abs_average': 'absolute average'}, level=1, axis='columns', inplace=True)
         stats.reset_index(inplace=True)
     return stats
     
-# ToDo: distribution of residuals.
+# ToDo: distribution of residuals. 6 months later: What residuals?!
