@@ -615,11 +615,13 @@ def process_upload(filenames, contents):
         raise
 
 
-def records_to_df(store):
+def records_to_df(store, columns=None):
     """ Convert records-style data to pandas DataFrame.
     
     :param store: Data from a dash_core_components.store component.
     :type store: list[dict]
+    :param columns: Columns to use for empty DataFrame in case there are no records.
+    :type columns: list[dict]
     :return: Stored data as a DataFrame.
     :rtype: pandas.DataFrame
     """
@@ -627,6 +629,8 @@ def records_to_df(store):
     # If the DataFrame is practically empty, delete everything except for the columns.
     if df.isna().all().all():
         df = df[0:0]
+    if df.columns.empty and columns:
+        df = pd.DataFrame(None, columns=[c['id'] for c in columns])
     return df
 
 
@@ -755,15 +759,21 @@ def register_callbacks(dashapp):
         return filtered_msg
     
     @dashapp.callback(Output('pca-store', 'data'),
-                      [Input('trials-table', 'derived_virtual_data')])
-    def set_pca_store(table_data):
+                      [Input('trials-table', 'derived_virtual_data')],
+                      [State('trials-table', 'columns')])
+    def set_pca_store(table_data, table_columns):
         """ Save results of PCA into a store. """
-        df = records_to_df(table_data)
+        df = records_to_df(table_data, columns=table_columns)
         try:
             df[['user', 'block', 'constraint']] = df[['user', 'block', 'constraint']].astype('category')
+            pca_df = df.groupby('block').apply(analysis.get_pca_data)
         except KeyError:
-            raise PreventUpdate
-        pca_df = analysis.get_pca_data(df)
+            pca_df = pd.DataFrame()
+        else:
+            pca_df.reset_index(inplace=True)
+            
+        if pca_df.empty:
+            pca_df = pd.DataFrame(None, columns=['block', 'PC', 'var_expl', 'x', 'y', 'meanx', 'meany'])
         return df_to_records(pca_df)
     
     @dashapp.callback(Output('barplot-pca', 'figure'),
@@ -771,6 +781,10 @@ def register_callbacks(dashapp):
     def set_pca_plot(pca_data):
         """ Update bar-plot showing explained variance per principal component. """
         df = records_to_df(pca_data)
+        try:
+            df[['block', 'PC']] = df[['block', 'PC']].astype('category')
+        except KeyError:
+            pass
         fig = layout.generate_pca_figure(df)
         return fig
     
@@ -780,8 +794,12 @@ def register_callbacks(dashapp):
     def set_pca_angle_table(pca_data):
         """ Update table for showing divergence between principal components and UCM vectors. """
         pca_df = records_to_df(pca_data)
-        ucm_vec = analysis.get_ucm_vec()
-        angle_df = analysis.get_pc_ucm_angles(pca_df, ucm_vec)
+        if pca_df.empty:
+            angle_df = pd.DataFrame(None, columns=['block', 'PC', 'parallel', 'orthogonal'])
+        else:
+            ucm_vec = analysis.get_ucm_vec()
+            angle_df = pca_df.groupby('block').apply(analysis.get_pc_ucm_angles, ucm_vec)
+            angle_df.reset_index(level='block', inplace=True)
         columns = layout.get_pca_columns_settings(angle_df)
         return df_to_records(angle_df), columns
     
@@ -799,14 +817,14 @@ def register_callbacks(dashapp):
             raise PreventUpdate
         
         ucm_vec = analysis.get_ucm_vec()
-        df_proj = df[['block', 'df1', 'df2']].groupby('block').apply(analysis.get_projections, ucm_vec).abs()
+        df_proj = df[['block', 'df1', 'df2']].groupby('block').apply(analysis.get_projections, ucm_vec)
         if df_proj.empty:
-            df_proj['parallel'] = None
-            df_proj['orthogonal'] = None
-        df_proj['block'] = df['block']
+            df_proj['parallel'] = np.NaN
+            df_proj['orthogonal'] = np.NaN
+        df_proj['block'] = df['block']  # FixMe: We need projection length for RM ANOVA. Split function in 2.
         
         # Get statistic characteristics of absolute lengths.
-        df_stats = analysis.get_stats(df_proj, by='block')
+        df_stats = analysis.get_stats(df_proj, by='block')  # FixMe: Avg length, instead of mean, which is 0.
         #df_stats.insert(0, 'projection', df_stats.index)
 
         # For display in a simple table flatten Multiindex columns.
@@ -828,8 +846,8 @@ def register_callbacks(dashapp):
         fig = layout.generate_trials_figure(df, contour_data=z)
         
         # PCA visualisation.
+        pca_df = records_to_df(pca_data)
         if 'Show' in show_pca:
-            pca_df = records_to_df(pca_data)
             arrows = layout.get_pca_annotations(pca_df)
             fig.layout.update(annotations=arrows)
             
@@ -886,7 +904,8 @@ def register_callbacks(dashapp):
         try:
             df[['user', 'block', 'constraint']] = df[['user', 'block', 'constraint']].astype('category')
         except KeyError:
-            raise PreventUpdate
+            pass
+            #raise PreventUpdate
         variances = analysis.get_descriptive_stats(df)
         columns = layout.get_columns_settings(variances)
         return df_to_records(variances), columns

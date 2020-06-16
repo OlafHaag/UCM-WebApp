@@ -8,10 +8,11 @@ import dash_table
 from dash_table.Format import Format, Scheme, Symbol
 import plotly.graph_objs as go
 import plotly.figure_factory as ff
+import plotly.express as px
 import pandas as pd
 import numpy as np
 
-from .analysis import get_mean_x_by, get_pca_vectors
+from . import analysis
 
 # Set pandas plotting backend to ploty. Requires plotly >= 4.8.0.
 pd.options.plotting.backend = 'plotly'
@@ -54,6 +55,7 @@ theme = {'font-family': 'Lobster',
          'graph_margins': {'l': 40, 'b': 40, 't': 40, 'r': 10},
          'df1_color': 'lightseagreen',
          'df2_color': 'mediumpurple',
+         'colors': px.colors.qualitative.Plotly,
          }
 
 
@@ -169,11 +171,13 @@ def generate_trials_figure(df, contour_data=None):
             x=df[df['block'] == i]['df1'],
             y=df[df['block'] == i]['df2'],
             text=[f"df1={j['df1']}<br />df2={j['df2']}<br />Sum={j['sum']:.2f}<br />Participant {j['user']}"
+                  f"<br />Block {i}"
                   for _, j in df[df['block'] == i].iterrows()],
             hoverinfo='text',
             mode='markers',
             opacity=0.7,
             marker={'size': 10,
+                    'color': theme['colors'][i],
                     'line': {'width': 0.5, 'color': 'white'}
                     },
             name=f"Block {i} {'|'.join(df[df['block'] == i]['constraint'].unique())}",
@@ -202,7 +206,9 @@ def generate_trials_figure(df, contour_data=None):
         x=[25, 100],
         y=[100, 25],
         mode='lines',
-        name="task goal 1"
+        name="task goal 1",
+        marker={'color': 'black',
+                },
     ))
     # Task goal 2 (DoF constrained) visualization.
     fig.add_scatter(y=[62.5], x=[62.5],
@@ -212,7 +218,8 @@ def generate_trials_figure(df, contour_data=None):
                     mode='markers',
                     marker_symbol='x',
                     opacity=0.7,
-                    marker={'size': 25})
+                    marker={'size': 25,
+                            'color': 'red'})
 
     # Add visualisation for outlier detection.
     if isinstance(contour_data, np.ndarray):
@@ -246,10 +253,11 @@ def get_pca_annotations(pca_dataframe):
     """
     # Visualize the principal components as vectors over the input data.
     arrows = list()
-    # ToDo: groupby
-    vectors = [get_pca_vectors(pca_dataframe)]
-    if vectors:
-        for group in vectors:
+    # Each block displays its principal components.
+    try:
+        for name, group in pca_dataframe.groupby('block'):
+            vectors = analysis.get_pca_vectors(group)  # origin->destination pairs.
+            
             arrows.extend([dict(
                 ax=v0[0],
                 ay=v0[1],
@@ -263,9 +271,11 @@ def get_pca_annotations(pca_dataframe):
                 arrowhead=3,
                 arrowsize=1,
                 arrowwidth=1.5,
-                arrowcolor='#636363'
+                arrowcolor=theme['colors'][name]  # Match arrow color to block.
             )
-                for v0, v1 in group])
+                for v0, v1 in vectors])
+    except KeyError:
+        pass
     return arrows
 
 
@@ -342,7 +352,7 @@ def generate_histograms(dataframe):
         # Columns we want to plot histograms for. Display order is reversed.
         data = [dataframe[c] for c in cols]
         # Create distplot with curve_type set to 'normal'.
-        fig = ff.create_distplot(data, cols, curve_type='normal')  # Override default 'kde'.
+        fig = ff.create_distplot(data, cols, curve_type='normal')  # Override default 'kde'.  # FixMe: set df1,df2 colors
 
     fig.layout.update(legend=legend,
                       yaxis={'title': 'Probability Density'},
@@ -364,46 +374,25 @@ def generate_pca_figure(dataframe):
         xanchor='right',
         yanchor='top',
         orientation='v',
+        title={'text': 'PC'},
     )
     
     layout = dict(
+        legend=legend,
         yaxis={'title': 'Explained variance in percent'},
+        xaxis={'title': 'Block'},
         margin={'l': 60, 'b': 40, 't': 40, 'r': 10},
+        hovermode=False,
     )
     
-    if dataframe.empty:
+    try:
+        fig = px.bar(dataframe, x='block', y='var_expl', barmode='group', color='PC')
+        fig.update_traces(texttemplate='%{y:.2f}%', textposition='outside')
+        data = fig.data
+    except (KeyError, ValueError):
         data = []
-    else:
-        trace1 = dict(
-            type='bar',
-            x=[f'PC {i+1}' for i in dataframe.index],
-            y=dataframe['var_expl'],
-            name='Individual'
-        )
-        """ Since we didn't reduce dimensionality, cumulative explained variance will always add up to 100%.
-        # Add cumulative visualization.
-        cum_var_exp = dataframe['var_expl'].cumsum()
-        trace2 = dict(
-            type='scatter',
-            x=[f'PC {i+1}' for i in dataframe.index],
-            y=cum_var_exp,
-            name='Cumulative'
-        )
-        layout.update(legend=legend,
-                      annotations=list([
-                          dict(
-                              x=1.02,
-                              y=1.05,
-                              xref='paper',
-                              yref='paper',
-                              text='Explained Variance',
-                              showarrow=False,)]),
-                      )
-        data = [trace1, trace2]
-        """
-        data = [trace1]
     
-    fig = dict(data=data, layout=layout)
+    fig = dict(data=data, layout=layout)  # FixMe: Legend labels, hover template
     return fig
 
 
@@ -425,6 +414,7 @@ def generate_variance_figure(dataframe):
         yanchor='top',
         orientation='v',
         itemsizing='constant',
+        title={'text': 'Mean Variance'},
     )
     
     fig = go.Figure(
@@ -437,13 +427,6 @@ def generate_variance_figure(dataframe):
             margin=theme['graph_margins'],
             showlegend=True,
             legend=legend,
-            annotations=list([
-                dict(x=1.02,
-                     y=1.05,
-                     xref='paper',
-                     yref='paper',
-                     text='Mean Variance',
-                     showarrow=False, )]),
             hovermode='closest'
         ))
     
@@ -454,11 +437,14 @@ def generate_variance_figure(dataframe):
             y=group['sum var'],
             name=f'Participant {name}',
             showlegend=False,
+            marker={'color': [theme['colors'][i] for i in group['block']],
+                    'opacity': 0.5},
+            hovertemplate='Sum Variance: %{y:.2f}',
         ))
     fig.update_xaxes(tickvals=blocks)
 
     # Add mean across participants by block
-    mean_vars = get_mean_x_by(dataframe, 'sum var', by='block')
+    mean_vars = analysis.get_mean(dataframe, column='sum var', by='block')
     for block, v in mean_vars.iteritems():
         fig.add_trace(go.Scatter(
             x=[block - 0.5, block, block + 0.5],
@@ -468,6 +454,8 @@ def generate_variance_figure(dataframe):
             hoverinfo='y',
             textposition='top center',
             mode='lines',
+            marker={'color': theme['colors'][block]},
+            hovertemplate='Mean Variance: %{y:.2f}',
         ))
     fig.update_yaxes(hoverformat='.2f')
     

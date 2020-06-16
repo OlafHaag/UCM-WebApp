@@ -74,9 +74,7 @@ def get_descriptive_stats(dataframe):
     try:
         grouped = dataframe.groupby(group_vars)
         variances = grouped.agg({v: agg_funcs for v in vars})
-    except KeyError:
-        raise
-    except pd.core.base.DataError:
+    except (KeyError, pd.core.base.DataError):
         # Create empty DataFrame with columns.
         return pd.DataFrame(None, columns=group_vars + [" ".join(i) for i in itertools.product(vars, agg_funcs)])
     
@@ -87,22 +85,22 @@ def get_descriptive_stats(dataframe):
     return variances
 
 
-def get_mean_x_by(dataframe, x, by=None):
+def get_mean(dataframe, column, by=None):
     """ Return mean values of column x (optionally grouped)
     
     :param dataframe: Data
     :type dataframe: pandas.Dataframe
-    :param x: Column name
-    :type x: str
+    :param column: Column name
+    :type column: str
     :param by: Column names by which to group.
     :type by: str|list
     :return: mean value, optionally for each group.
     :rtype: numpy.float64|pandas.Series
     """
     if by is None:
-        means = dataframe[x].mean()
+        means = dataframe[column].mean()
     else:
-        means = dataframe.groupby(by)[x].mean()
+        means = dataframe.groupby(by)[column].mean()
     return means
 
 
@@ -123,16 +121,17 @@ def get_pca_data(dataframe):
         pca.fit(x)
     except ValueError:
         # Return empty.
-        return pd.DataFrame(columns=['var_expl', 'x', 'y', 'meanx', 'meany'])
-    
-    df = pd.DataFrame({'var_expl': pca.explained_variance_ratio_.T * 100,  # In percent
-                       'x': pca.components_[:, 0],
-                       'y': pca.components_[:, 1],
-                       'meanx': pca.mean_[0],
-                       'meany': pca.mean_[1],
-                       },
-                      index=[1, 2]  # For designating principal components.
-                      )
+        df = pd.DataFrame(columns=['var_expl', 'x', 'y', 'meanx', 'meany'])
+    else:
+        df = pd.DataFrame({'var_expl': pca.explained_variance_ratio_.T * 100,  # In percent
+                           'x': pca.components_[:, 0],
+                           'y': pca.components_[:, 1],
+                           'meanx': pca.mean_[0],
+                           'meany': pca.mean_[1],
+                           },
+                          index=[1, 2]  # For designating principal components.
+                          )
+    df.index.rename('PC', inplace=True)
     return df
 
 
@@ -147,8 +146,8 @@ def get_pca_vectors(dataframe):
     vectors = list()
     # Use the "components" to define the direction of the vectors,
     # and the "explained variance" to define the squared-length of the vectors.
-    for pc, row in dataframe.iterrows():
-        v = row[['x', 'y']].values * np.sqrt(row['var_expl']) * 5  # Scale up for better visibility.
+    for idx, row in dataframe.iterrows():
+        v = row[['x', 'y']].values * np.sqrt(row['var_expl']) * 3  # Scale up for better visibility.
         mean = row[['meanx', 'meany']].values
         mean_offset = (mean, mean + v)
         vectors.append(mean_offset)
@@ -232,13 +231,13 @@ def get_pc_ucm_angles(dataframe, vec_ucm):
     :rtype: pandas.DataFrame
     """
     vec_ucm_ortho = get_orthogonal_vec2d(vec_ucm)
-    df_angles = pd.DataFrame(columns=['parallel', 'orthogonal'], index=dataframe.index)
-    for pc, row in dataframe.iterrows():
+    df_angles = pd.DataFrame(columns=['parallel', 'orthogonal'])
+    for idx, row in dataframe.iterrows():
         angle_parallel = get_interior_angle(vec_ucm, row[['x', 'y']])
         angle_ortho = get_interior_angle(vec_ucm_ortho, row[['x', 'y']])
-        df_angles.loc[pc] = [angle_parallel, angle_ortho]
+        df_angles.loc[idx] = [angle_parallel, angle_ortho]
     df_angles[['parallel', 'orthogonal']] = df_angles[['parallel', 'orthogonal']].astype(float)
-    df_angles.insert(0, 'pc', df_angles.index + 1)
+    df_angles.insert(0, 'PC', dataframe['PC'])
     return df_angles
 
 
