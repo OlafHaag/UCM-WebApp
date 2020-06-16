@@ -9,6 +9,7 @@ from dash_table.Format import Format, Scheme, Symbol
 import plotly.graph_objs as go
 import plotly.figure_factory as ff
 import plotly.express as px
+from plotly.subplots import make_subplots
 import pandas as pd
 import numpy as np
 
@@ -355,7 +356,7 @@ def generate_histograms(dataframe):
         # Create distplot with curve_type set to 'normal'.
         fig = ff.create_distplot(data,  dataframe.columns, curve_type='normal')  # Override default 'kde'.
     
-    # FixMe: set df1, df2 colors
+    # Set theme colors for traces.
     for data in fig.data:
         try:
             data.marker.color = theme[data.name]
@@ -410,35 +411,26 @@ def generate_variance_figure(dataframe):
     :param dataframe: Data of variances.
     :type dataframe: pandas.DataFrame
     """
+    fig = make_subplots(rows=2, cols=1,
+                        shared_xaxes=True,
+                        vertical_spacing=0.04,
+                        row_titles=["A", "B"])
+    
     if dataframe.empty:
-        fig = go.Figure()
-        fig.layout.update(yaxis_title='Variance', xaxis_title='Block', margin=theme['graph_margins'],)
+        fig.layout.update(yaxis_title="Variance",
+                          yaxis2_title="Mean",
+                          xaxis2_title='Block',
+                          margin=theme['graph_margins'],
+                          )
+        # Empty dummy traces.
+        fig.add_trace({}, row=1, col=1)
+        fig.add_trace({}, row=2, col=1)
         return fig
 
     blocks = dataframe['block'].unique()
 
-    legend = go.layout.Legend(
-        xanchor='right',
-        yanchor='top',
-        orientation='v',
-        itemsizing='constant',
-        title={'text': 'Mean Variance'},
-    )
-    
-    fig = go.Figure(
-        layout=go.Layout(
-            xaxis={'title': 'Block'},
-            yaxis={'title': 'Variance'},
-            barmode='group',
-            bargap=0.15,  # Gap between bars of adjacent location coordinates.
-            bargroupgap=0.1,  # Gap between bars of the same location coordinate.
-            margin=theme['graph_margins'],
-            showlegend=True,
-            legend=legend,
-            hovermode='closest'
-        ))
-    
     grouped = dataframe.groupby('user')
+    # Variance plot.
     for name, group in grouped:
         fig.add_trace(go.Bar(
             x=group['block'],
@@ -448,11 +440,42 @@ def generate_variance_figure(dataframe):
             marker={'color': [theme['colors'][i] for i in group['block']],
                     'opacity': 0.5},
             hovertemplate='Sum Variance: %{y:.2f}',
-        ))
+        ),
+            row=1, col=1,
+        )
     fig.update_xaxes(tickvals=blocks)
 
     # Add mean across participants by block
     mean_vars = analysis.get_mean(dataframe, column='sum var', by='block')
+    for block, v in mean_vars.iteritems():
+        fig.add_trace(go.Scatter(
+            x=[block - 0.5, block, block + 0.5],
+            y=[v, v, v],
+            name=f"Block {block}",
+            showlegend=False,
+            hovertext=f'Block {block}',
+            hoverinfo='y',
+            textposition='top center',
+            mode='lines',
+            marker={'color': theme['colors'][block]},
+            hovertemplate='Mean Sum Variance: %{y:.2f}',
+        ), row=1, col=1)
+    fig.update_yaxes(title_text="Variance", hoverformat='.2f', row=1, col=1)
+    
+    # Mean plot.
+    for name, group in grouped:
+        fig.add_trace(go.Bar(
+            x=group['block'],
+            y=group['sum mean'],
+            name=f'Participant {name}',
+            showlegend=False,
+            marker={'color': [theme['colors'][i] for i in group['block']],
+                    'opacity': 0.5},
+            hovertemplate='Sum Mean: %{y:.2f}',
+        ), row=2, col=1,)
+
+    # Add mean across participants by block
+    mean_vars = analysis.get_mean(dataframe, column='sum mean', by='block')
     for block, v in mean_vars.iteritems():
         fig.add_trace(go.Scatter(
             x=[block - 0.5, block, block + 0.5],
@@ -463,10 +486,29 @@ def generate_variance_figure(dataframe):
             textposition='top center',
             mode='lines',
             marker={'color': theme['colors'][block]},
-            hovertemplate='Mean Variance: %{y:.2f}',
-        ))
-    fig.update_yaxes(hoverformat='.2f')
+            hovertemplate='Mean Sum: %{y:.2f}',
+        ), row=2, col=1)
+    fig.update_yaxes(title_text="Mean", hoverformat='.2f', row=2, col=1)
     
+    # Layout
+    legend = go.layout.Legend(
+        xanchor='right',
+        yanchor='top',
+        orientation='v',
+        itemsizing='constant',
+        title={'text': 'Mean'},
+    )
+    
+    fig.update_layout(
+        xaxis2={'title': 'Block'},
+        barmode='group',
+        bargap=0.15,  # Gap between bars of adjacent location coordinates.
+        bargroupgap=0.1,  # Gap between bars of the same location coordinate.
+        margin=theme['graph_margins'],
+        showlegend=True,
+        legend=legend,
+        hovermode='closest',
+    )
     return fig
 
 
@@ -494,6 +536,30 @@ def get_table_div(table, num, title, description=None):
     return table
 
 
+def table_type(df_column):
+    """ Return the type of column for a dash DataTable.
+    Doesn't work most of the time and just returns 'any'.
+    Note - this only works with Pandas >= 1.0.0
+    """
+    if isinstance(df_column.dtype, pd.DatetimeTZDtype):
+        return 'datetime',
+    elif (isinstance(df_column.dtype, pd.StringDtype) or
+          isinstance(df_column.dtype, pd.BooleanDtype) or
+          isinstance(df_column.dtype, pd.CategoricalDtype) or
+          isinstance(df_column.dtype, pd.PeriodDtype)):
+        return 'text'
+    elif (df_column.dtype == 'int' or
+          isinstance(df_column.dtype, pd.SparseDtype) or
+          isinstance(df_column.dtype, pd.IntervalDtype) or
+          isinstance(df_column.dtype, pd.Int8Dtype) or
+          isinstance(df_column.dtype, pd.Int16Dtype) or
+          isinstance(df_column.dtype, pd.Int32Dtype) or
+          isinstance(df_column.dtype, pd.Int64Dtype)):
+        return 'numeric'
+    else:
+        return 'any'
+    
+    
 def get_columns_settings(dataframe):
     """ Get display settings of columns for tables.
     
@@ -504,7 +570,7 @@ def get_columns_settings(dataframe):
     """
     columns = list()
     for c in dataframe.columns:
-        # Nicer column names.
+        # Nicer column names. Exclude df1 and df2.
         label = c.replace("_", " ").title().replace("Df1", "df1").replace("Df2", "df2")
         if dataframe[c].dtype == 'float':
             columns.append({'name': label,
@@ -512,7 +578,7 @@ def get_columns_settings(dataframe):
                             'type': 'numeric',
                             'format': Format(precision=2, scheme=Scheme.fixed)})
         else:
-            columns.append({'name': label, 'id': c})
+            columns.append({'name': label, 'id': c, 'type': table_type(dataframe[c])})
     return columns
 
 
@@ -705,16 +771,16 @@ def create_content():
                                  "to be equal to 125. Outliers are identified using the robust "
                                  "covariance method and are colored in red.  \n" + filter_hint)
     
-    grab_onset_graph = get_figure_div(dcc.Graph(id='onset-dfs'), 0,
+    grab_onset_graph = get_figure_div(dcc.Graph(id='onset-dfs'), 4,
                                          "Onset of sliders for df1 and df2 being grabbed.")
     
-    grab_duration_graph = get_figure_div(dcc.Graph(id='duration-dfs'), 0,
+    grab_duration_graph = get_figure_div(dcc.Graph(id='duration-dfs'), 5,
                                          "Duration of sliders for df1 and df2 being grabbed.")
     
-    hist_graph_dfs = get_figure_div(dcc.Graph(id='histogram-dfs'), 4, "Histograms of endpoint values for df1 and df2 "
+    hist_graph_dfs = get_figure_div(dcc.Graph(id='histogram-dfs'), 6, "Histograms of endpoint values for df1 and df2 "
                                                                       "compared to normal distributions.")
     
-    hist_graph_sum = get_figure_div(dcc.Graph(id='histogram-sum'), 5, "Histogram of the sum of df1 and df2 "
+    hist_graph_sum = get_figure_div(dcc.Graph(id='histogram-sum'), 7, "Histogram of the sum of df1 and df2 "
                                                                       "compared to a normal distribution.")
     
     corr_table = get_table_div(generate_simple_table(df, 'corr-table'), 2,
@@ -724,7 +790,7 @@ def create_content():
                                )
     
     # ToDo: histogram of residuals
-    pca_graph = get_figure_div(dcc.Graph(id='barplot-pca'), 6, "Explained variance by different principal components"
+    pca_graph = get_figure_div(dcc.Graph(id='barplot-pca'), 8, "Explained variance by different principal components"
                                                                " in percent.")
     
     pca_table = get_table_div(generate_simple_table(df, 'pca-table'), 3,
@@ -732,8 +798,9 @@ def create_content():
                               "and the space parallel or orthogonal to the theoretical UCM"
                               )
     
-    var_graph = get_figure_div(dcc.Graph(id='barplot-variance'), 7, "Variance of the sum of df1 and df2 "
-                                                                    "grouped by block and participant.")
+    var_graph = get_figure_div(dcc.Graph(id='barplot-variance', style={'height': theme['height']}), 9,
+                               "**A** Variance of the sum of df1 and df2 grouped by block and participant. **B** "
+                               "Mean of the sum of df1 and df2.")
     var_graph.style = {'marginTop': '70px'}  # Match it to the table y position.
     
     var_table = get_table_div(generate_table(df, 'variance-table'), 4,
