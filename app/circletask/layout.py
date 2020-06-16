@@ -53,8 +53,9 @@ theme = {'font-family': 'Lobster',
          'background-color': '#e7ecf7',
          'height': '60vh',
          'graph_margins': {'l': 40, 'b': 40, 't': 40, 'r': 10},
-         'df1_color': 'lightseagreen',
-         'df2_color': 'mediumpurple',
+         'df1': 'cornflowerblue',
+         'df2': 'palevioletred',
+         'sum': 'peru',
          'colors': px.colors.qualitative.Plotly,
          }
 
@@ -310,7 +311,7 @@ def generate_grab_figure(dataframe, feature='duration'):
                                 y=group_df[f'df1_{feature}'],
                                 legendgroup='df1', scalegroup='df1', name='df1',
                                 side='negative',
-                                line_color=theme['df1_color'],
+                                line_color=theme['df1'],
                                 showlegend=bool(name == dataframe['block'].unique()[0]),
                                 )
                       )
@@ -318,7 +319,7 @@ def generate_grab_figure(dataframe, feature='duration'):
                                 y=group_df[f'df2_{feature}'],
                                 legendgroup='df2', scalegroup='df2', name='df2',
                                 side='positive',
-                                line_color=theme['df2_color'],
+                                line_color=theme['df2'],
                                 showlegend=bool(name == dataframe['block'].unique()[0]),
                                 )
                       )
@@ -344,16 +345,23 @@ def generate_histograms(dataframe):
     )
     
     cols = list(dataframe.columns)
-    cols.reverse()
+    #cols.reverse()
     if dataframe.empty:
         fig = go.Figure()
         fig.update_xaxes(range=[0, 100])
     else:
         # Columns we want to plot histograms for. Display order is reversed.
-        data = [dataframe[c] for c in cols]
+        data = [dataframe[c] for c in dataframe.columns]
         # Create distplot with curve_type set to 'normal'.
-        fig = ff.create_distplot(data, cols, curve_type='normal')  # Override default 'kde'.  # FixMe: set df1,df2 colors
-
+        fig = ff.create_distplot(data,  dataframe.columns, curve_type='normal')  # Override default 'kde'.
+    
+    # FixMe: set df1, df2 colors
+    for data in fig.data:
+        try:
+            data.marker.color = theme[data.name]
+        except KeyError:
+            pass
+        
     fig.layout.update(legend=legend,
                       yaxis={'title': 'Probability Density'},
                       xaxis={'title': 'Endpoint Value'},
