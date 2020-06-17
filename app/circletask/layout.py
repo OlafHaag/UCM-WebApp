@@ -812,6 +812,7 @@ def create_content():
     # Tie widgets together to layout.
     content = html.Div([
         dcc.Store(id='datastore', storage_type='memory'),
+        dcc.Store(id='proj-store', storage_type='memory'),
         dcc.Store(id='contour-store', storage_type='memory'),
         dcc.Store(id='pca-store', storage_type='memory'),
         

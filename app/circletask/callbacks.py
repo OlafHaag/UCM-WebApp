@@ -897,28 +897,49 @@ def register_callbacks(dashapp):
         return df_to_records(angle_df), columns
     
     # Projections
-    @dashapp.callback([Output('proj-table', 'data'),
-                       Output('proj-table', 'columns')],
-                      [Input('trials-table', 'derived_virtual_data')])
-    def set_proj_table(table_data):
-        """ Calculate projections onto UCM parallel and orthogonal vectors and their descriptive statistics and put
-         the result into a table.
-         """
-        df = records_to_df(table_data)
+    @dashapp.callback(Output('proj-store', 'data'),
+                      [Input('trials-table', 'derived_virtual_data')],
+                      [State('trials-table', 'columns'),
+                       State('trials-table', 'derived_virtual_indices')])
+    def set_proj_store(table_data, table_columns, row_indices):
+        """ Calculate projections onto UCM parallel and orthogonal vectors and save results into a store. """
+        ucm_vec = analysis.get_ucm_vec()
+        df = records_to_df(table_data, columns=table_columns)
         try:
             df[['user', 'block', 'constraint']] = df[['user', 'block', 'constraint']].astype('category')
+            df_proj = df[['block', 'df1', 'df2']].groupby('block').apply(analysis.get_projections, ucm_vec)
         except KeyError:
-            raise PreventUpdate
-        
-        ucm_vec = analysis.get_ucm_vec()
-        df_proj = df[['block', 'df1', 'df2']].groupby('block').apply(analysis.get_projections, ucm_vec)
+            df_proj = pd.DataFrame()
+            
         if df_proj.empty:
             df_proj['parallel'] = np.NaN
             df_proj['orthogonal'] = np.NaN
-        df_proj['block'] = df['block']  # FixMe: We need projection length for RM ANOVA. Split function in 2.
+            df_proj['idx'] = np.NaN
+        else:
+            df_proj['idx'] = row_indices
         
-        # Get statistic characteristics of absolute lengths.
-        df_stats = analysis.get_stats(df_proj, by='block')
+        return df_to_records(df_proj)
+    
+    @dashapp.callback([Output('proj-table', 'data'),
+                       Output('proj-table', 'columns')],
+                      [Input('proj-store', 'data')],
+                      [State('trials-table', 'data')])
+    def set_proj_table(projections, table_data):
+        """  and their descriptive statistics and put
+         the result into a table.
+         """
+        df_proj = records_to_df(projections)
+        try:
+            df_trials = records_to_df(table_data).iloc[df_proj['idx']]
+            df_trials[['user', 'block', 'constraint']] = df_trials[['user', 'block', 'constraint']].astype('category')
+        except (KeyError, ValueError):
+            df_stats = analysis.get_stats(df_proj)
+        else:
+            df_proj['block'] = df_trials['block']
+            df_proj.drop('idx', axis='columns', inplace=True)
+        
+            # Get statistic characteristics of absolute lengths.
+            df_stats = analysis.get_stats(df_proj, by='block')
         # Mean is 0, so we don't need to show it.
         df_stats.drop('mean', axis='columns', level=1, inplace=True)
 
