@@ -651,6 +651,7 @@ def df_to_records(df):
 ################
 def register_callbacks(dashapp):
     """ Defines all callbacks to UI events in the dashboard. """
+    # Upload
     @dashapp.callback(Output('output-data-upload', 'children'),
                       [Input('upload-data', 'contents')],
                       [State('upload-data', 'filename'),
@@ -667,6 +668,7 @@ def register_callbacks(dashapp):
             # Display success message.
             return [html.Div("Upload successful.")]
     
+    # Data stores
     @dashapp.callback([Output('datastore', 'data'),
                        Output('user-IDs', 'options'),
                        Output('removal-hint', 'children')],
@@ -675,7 +677,7 @@ def register_callbacks(dashapp):
                        Input('date-picker-range', 'start_date'),
                        Input('date-picker-range', 'end_date'),
                        ])
-    def update_datastore(upload_msg, refresh_clicks, start_date, end_date):
+    def set_datastore(upload_msg, refresh_clicks, start_date, end_date):
         """ Get data from SQL DB and store in memory.
             Update dropdown options.
         """
@@ -705,13 +707,14 @@ def register_callbacks(dashapp):
         users = [{'label': p, 'value': p} for p in df['user'].unique()]
         return df_to_records(df_adjusted), users, removal_msg
     
+    # Trials
     @dashapp.callback([Output('trials-table', 'data'),
                        Output('trials-table', 'columns'),
                        Output('contour-store', 'data')],
                       [Input('datastore', 'data'),
                        Input('user-IDs', 'value'),
                        Input('contamination', 'value')])
-    def set_table(stored_data, users_selected, contamination):
+    def set_trials_table(stored_data, users_selected, contamination):
         """ Prepares stored data for display in the main table. Assesses outliers as well. """
         df = records_to_df(stored_data)
         # Get outlier data.
@@ -758,6 +761,96 @@ def register_callbacks(dashapp):
         filtered_msg = bool(n_filtered) * f" {n_filtered} trials were removed by filters set in the table ({filter})."
         return filtered_msg
     
+    @dashapp.callback(Output('scatterplot-trials', 'figure'),
+                      [Input('pca-store', 'data'),  # Delay update until PCA is through.
+                       Input('pca-checkbox', 'value')],
+                      [State('trials-table', 'derived_virtual_data'),
+                       State('datastore', 'data'),
+                       State('contour-store', 'data')])
+    def set_trials_plot(pca_data, show_pca, table_data, stored_data, contour):
+        """ Update the graph for displaying trial data as scatter plot. """
+        df = records_to_df(table_data)
+        z = np.array(contour)
+        fig = layout.generate_trials_figure(df, contour_data=z)
+        
+        # PCA visualisation.
+        pca_df = records_to_df(pca_data)
+        if 'Show' in show_pca:
+            arrows = layout.get_pca_annotations(pca_df)
+            fig.layout.update(annotations=arrows)
+            
+        return fig
+    
+    @dashapp.callback([Output('histogram-dfs', 'figure'),
+                       Output('histogram-sum', 'figure')],
+                      [Input('trials-table', 'derived_virtual_data')])
+    def set_histograms(table_data):
+        """ Update histograms when data in trials table changes. """
+        df = records_to_df(table_data)
+        try:
+            fig_dfs = layout.generate_histograms(df[['df1', 'df2']])
+            fig_sum = layout.generate_histograms(df[['sum']])
+        except KeyError:
+            fig = layout.generate_histograms(pd.DataFrame())
+            return fig, fig
+        return fig_dfs, fig_sum
+
+    @dashapp.callback([Output('corr-table', 'data'),
+                       Output('corr-table', 'columns')],
+                      [Input('trials-table', 'derived_virtual_data')])
+    def set_corr_table(table_data):
+        """ Update table showing Pearson correlations between degrees of freedom and their sum. """
+        df = records_to_df(table_data)
+        correlates = ['df1', 'df2', 'sum']
+        try:
+            corr = df[correlates].corr()
+        except KeyError:
+            corr = pd.DataFrame(columns=correlates, index=correlates)
+        if df.empty:
+            corr = pd.DataFrame(columns=correlates, index=correlates)
+            
+        corr.index.name = ''
+        corr.reset_index(inplace=True)
+        columns = layout.get_columns_settings(corr)
+        return df_to_records(corr), columns
+
+    # Reaction times
+    @dashapp.callback([Output('onset-dfs', 'figure'),
+                       Output('duration-dfs', 'figure')],
+                      [Input('trials-table', 'derived_virtual_data')])
+    def set_violinplots(table_data):
+        """ Update histograms when data in trials table changes. """
+        df = records_to_df(table_data)
+        try:
+            fig_onset = layout.generate_grab_figure(df, 'grab')
+            fig_duration = layout.generate_grab_figure(df, 'duration')
+        except KeyError:
+            raise PreventUpdate
+        return fig_onset, fig_duration
+
+    # Variance df1, df2, sum
+    @dashapp.callback([Output('variance-table', 'data'),
+                       Output('variance-table', 'columns')],
+                      [Input('trials-table', 'derived_virtual_data')])
+    def set_variance_table(table_data):
+        """ Update table showing variances of dependent and in independent variables. """
+        df = records_to_df(table_data)
+        try:
+            df[['user', 'block', 'constraint']] = df[['user', 'block', 'constraint']].astype('category')
+        except KeyError:
+            pass
+        variances = analysis.get_descriptive_stats(df)
+        columns = layout.get_columns_settings(variances)
+        return df_to_records(variances), columns
+    
+    @dashapp.callback(Output('barplot-variance', 'figure'),
+                      [Input('variance-table', 'derived_virtual_data')])
+    def set_variance_graph(table_data):
+        """ Update graph showing variances of dependent and in independent variables. """
+        df = records_to_df(table_data)
+        return layout.generate_means_figure(df)
+
+    # PCA
     @dashapp.callback(Output('pca-store', 'data'),
                       [Input('trials-table', 'derived_virtual_data')],
                       [State('trials-table', 'columns')])
@@ -771,11 +864,11 @@ def register_callbacks(dashapp):
             pca_df = pd.DataFrame()
         else:
             pca_df.reset_index(inplace=True)
-            
+    
         if pca_df.empty:
             pca_df = pd.DataFrame(None, columns=['block', 'PC', 'var_expl', 'x', 'y', 'meanx', 'meany'])
         return df_to_records(pca_df)
-    
+
     @dashapp.callback(Output('barplot-pca', 'figure'),
                       [Input('pca-store', 'data')])
     def set_pca_plot(pca_data):
@@ -787,7 +880,7 @@ def register_callbacks(dashapp):
             pass
         fig = layout.generate_pca_figure(df)
         return fig
-    
+
     @dashapp.callback([Output('pca-table', 'data'),
                        Output('pca-table', 'columns')],
                       [Input('pca-store', 'data')])
@@ -803,6 +896,7 @@ def register_callbacks(dashapp):
         columns = layout.get_pca_columns_settings(angle_df)
         return df_to_records(angle_df), columns
     
+    # Projections
     @dashapp.callback([Output('proj-table', 'data'),
                        Output('proj-table', 'columns')],
                       [Input('trials-table', 'derived_virtual_data')])
@@ -833,90 +927,3 @@ def register_callbacks(dashapp):
         # Get display settings for numeric cells.
         columns = layout.get_columns_settings(df_stats)
         return df_to_records(df_stats), columns
-    
-    @dashapp.callback(Output('scatterplot-trials', 'figure'),
-                      [Input('pca-store', 'data'),  # Delay update until PCA is through.
-                       Input('pca-checkbox', 'value')],
-                      [State('trials-table', 'derived_virtual_data'),
-                       State('datastore', 'data'),
-                       State('contour-store', 'data')])
-    def on_pca_set_trial_graph(pca_data, show_pca, table_data, stored_data, contour):
-        """ Update the graph for displaying trial data as scatter plot. """
-        df = records_to_df(table_data)
-        z = np.array(contour)
-        fig = layout.generate_trials_figure(df, contour_data=z)
-        
-        # PCA visualisation.
-        pca_df = records_to_df(pca_data)
-        if 'Show' in show_pca:
-            arrows = layout.get_pca_annotations(pca_df)
-            fig.layout.update(annotations=arrows)
-            
-        return fig
-
-    @dashapp.callback([Output('onset-dfs', 'figure'),
-                       Output('duration-dfs', 'figure')],
-                      [Input('trials-table', 'derived_virtual_data')])
-    def on_table_set_violinplot(table_data):
-        """ Update histograms when data in trials table changes. """
-        df = records_to_df(table_data)
-        try:
-            fig_onset = layout.generate_grab_figure(df, 'grab')
-            fig_duration = layout.generate_grab_figure(df, 'duration')
-        except KeyError:
-            raise PreventUpdate
-        return fig_onset, fig_duration
-    
-    @dashapp.callback([Output('histogram-dfs', 'figure'),
-                       Output('histogram-sum', 'figure')],
-                      [Input('trials-table', 'derived_virtual_data')])
-    def on_table_set_histograms(table_data):
-        """ Update histograms when data in trials table changes. """
-        df = records_to_df(table_data)
-        try:
-            fig_dfs = layout.generate_histograms(df[['df1', 'df2']])
-            fig_sum = layout.generate_histograms(df[['sum']])
-        except KeyError:
-            fig = layout.generate_histograms(pd.DataFrame())
-            return fig, fig
-        return fig_dfs, fig_sum
-    
-    @dashapp.callback([Output('corr-table', 'data'),
-                       Output('corr-table', 'columns')],
-                      [Input('trials-table', 'derived_virtual_data')])
-    def set_corr_table(table_data):
-        """ Update table showing Pearson correlations between degrees of freedom and their sum. """
-        df = records_to_df(table_data)
-        correlates = ['df1', 'df2', 'sum']
-        try:
-            corr = df[correlates].corr()
-        except KeyError:
-            corr = pd.DataFrame(columns=correlates, index=correlates)
-        if df.empty:
-            corr = pd.DataFrame(columns=correlates, index=correlates)
-            
-        corr.index.name = ''
-        corr.reset_index(inplace=True)
-        columns = layout.get_columns_settings(corr)
-        return df_to_records(corr), columns
-    
-    @dashapp.callback([Output('variance-table', 'data'),
-                       Output('variance-table', 'columns')],
-                      [Input('trials-table', 'derived_virtual_data')])
-    def set_variance_table(table_data):
-        """ Update table showing variances of dependent and in independent variables. """
-        df = records_to_df(table_data)
-        try:
-            df[['user', 'block', 'constraint']] = df[['user', 'block', 'constraint']].astype('category')
-        except KeyError:
-            pass
-        variances = analysis.get_descriptive_stats(df)
-        columns = layout.get_columns_settings(variances)
-        return df_to_records(variances), columns
-    
-    @dashapp.callback(Output('barplot-variance', 'figure'),
-                      [Input('variance-table', 'derived_virtual_data')])
-    def on_table_set_variance_graph(table_data):
-        """ Update graph showing variances of dependent and in independent variables. """
-        df = records_to_df(table_data)
-        return layout.generate_means_figure(df)
