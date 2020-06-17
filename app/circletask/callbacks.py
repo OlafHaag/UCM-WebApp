@@ -919,4 +919,4 @@ def register_callbacks(dashapp):
     def on_table_set_variance_graph(table_data):
         """ Update graph showing variances of dependent and in independent variables. """
         df = records_to_df(table_data)
-        return layout.generate_variance_figure(df)
+        return layout.generate_means_figure(df)

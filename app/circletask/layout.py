@@ -1,16 +1,17 @@
 """ This module contains all the dash components visible to the user and composes them to a layout. """
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+import string
 
 import dash_core_components as dcc
 import dash_html_components as html
 import dash_table
 from dash_table.Format import Format, Scheme, Symbol
-import plotly.graph_objs as go
-import plotly.figure_factory as ff
-import plotly.express as px
-from plotly.subplots import make_subplots
 import pandas as pd
+import plotly.express as px
+import plotly.figure_factory as ff
+import plotly.graph_objs as go
+from plotly.subplots import make_subplots
 import numpy as np
 
 from . import analysis
@@ -405,91 +406,73 @@ def generate_pca_figure(dataframe):
     return fig
 
 
-def generate_variance_figure(dataframe):
-    """ Barplot of variance in the sum of df1 and df2 per block.
+def generate_means_figure(dataframe, variables=None):
+    """ Barplots for variables grouped by block.
+    Variable for each user is plotted as well as mean over all users.
     
     :param dataframe: Data of variances.
     :type dataframe: pandas.DataFrame
+    :param variables: Variables to plot by block. List of dicts with 'label' and 'var' keys.
+    :type variables: list[dict]
+    :return: Figure object.
     """
-    fig = make_subplots(rows=2, cols=1,
+    if not variables:
+        variables = [{'label': 'Sum Variance', 'var': 'sum var'},
+                     {'label': 'Sum Mean', 'var': 'sum mean'}]
+        
+    fig = make_subplots(rows=len(variables), cols=1,
                         shared_xaxes=True,
                         vertical_spacing=0.04,
-                        row_titles=["A", "B"])
-    
+                        row_titles=list(string.ascii_uppercase[:len(variables)]))  # A, B, C, ...
+    # Handle empty data.
     if dataframe.empty:
-        fig.layout.update(yaxis_title="Variance",
-                          yaxis2_title="Mean",
-                          xaxis2_title='Block',
+        fig.layout.update(xaxis2_title='Block',
                           margin=theme['graph_margins'],
                           )
         # Empty dummy traces.
-        fig.add_trace({}, row=1, col=1)
-        fig.add_trace({}, row=2, col=1)
+        for i, v in enumerate(variables):
+            fig.add_trace({}, row=i+1, col=1)
+            fig.update_yaxes(title_text=v['label'], hoverformat='.2f', row=i+1, col=1)
+        fig.update_xaxes(title_text="Block", row=len(variables), col=1)
         return fig
-
+    
+    # Subplots for variables.
     blocks = dataframe['block'].unique()
-
     grouped = dataframe.groupby('user')
     # Variance plot.
-    for name, group in grouped:
-        fig.add_trace(go.Bar(
-            x=group['block'],
-            y=group['sum var'],
-            name=f'Participant {name}',
-            showlegend=False,
-            marker={'color': [theme['colors'][i] for i in group['block']],
-                    'opacity': 0.5},
-            hovertemplate='Sum Variance: %{y:.2f}',
-        ),
-            row=1, col=1,
-        )
-    fig.update_xaxes(tickvals=blocks)
-
-    # Add mean across participants by block
-    mean_vars = analysis.get_mean(dataframe, column='sum var', by='block')
-    for block, v in mean_vars.iteritems():
-        fig.add_trace(go.Scatter(
-            x=[block - 0.5, block, block + 0.5],
-            y=[v, v, v],
-            name=f"Block {block}",
-            showlegend=False,
-            hovertext=f'Block {block}',
-            hoverinfo='y',
-            textposition='top center',
-            mode='lines',
-            marker={'color': theme['colors'][block]},
-            hovertemplate='Mean Sum Variance: %{y:.2f}',
-        ), row=1, col=1)
-    fig.update_yaxes(title_text="Variance", hoverformat='.2f', row=1, col=1)
+    for i, v in enumerate(variables):
+        for name, group in grouped:
+            fig.add_trace(go.Bar(
+                x=group['block'],
+                y=group[v['var']],
+                name=f'Participant {name}',
+                showlegend=False,
+                marker={'color': [theme['colors'][j] for j in group['block']],
+                        'opacity': 0.5},
+                hovertemplate="%{text}: %{y:.2f}",
+                text=[v['label']] * len(group),
+            ),
+                row=i+1, col=1,
+            )
     
-    # Mean plot.
-    for name, group in grouped:
-        fig.add_trace(go.Bar(
-            x=group['block'],
-            y=group['sum mean'],
-            name=f'Participant {name}',
-            showlegend=False,
-            marker={'color': [theme['colors'][i] for i in group['block']],
-                    'opacity': 0.5},
-            hovertemplate='Sum Mean: %{y:.2f}',
-        ), row=2, col=1,)
+        # Add mean across participants by block
+        means = analysis.get_mean(dataframe, column=v['var'], by='block')
+        for block, value in means.iteritems():
+            fig.add_trace(go.Scatter(
+                x=[block - 0.5, block, block + 0.5],
+                y=[value, value, value],
+                name=f"Block {block}",
+                showlegend=(not i),  # Show legend only for first trace to prevent duplicates.
+                hovertext=f'Block {block}',
+                hoverinfo='y',
+                textposition='top center',
+                mode='lines',
+                marker={'color': theme['colors'][block]},
+                hovertemplate=f"Mean {v['label']}: {value:.2f}",
+            ), row=i+1, col=1)
+        fig.update_yaxes(title_text=v['label'], hoverformat='.2f', row=i+1, col=1)
+    fig.update_xaxes(tickvals=blocks, title_text="Block", row=len(variables), col=1)
 
-    # Add mean across participants by block
-    mean_vars = analysis.get_mean(dataframe, column='sum mean', by='block')
-    for block, v in mean_vars.iteritems():
-        fig.add_trace(go.Scatter(
-            x=[block - 0.5, block, block + 0.5],
-            y=[v, v, v],
-            name=f"Block {block}",
-            hovertext=f'Block {block}',
-            hoverinfo='y',
-            textposition='top center',
-            mode='lines',
-            marker={'color': theme['colors'][block]},
-            hovertemplate='Mean Sum: %{y:.2f}',
-        ), row=2, col=1)
-    fig.update_yaxes(title_text="Mean", hoverformat='.2f', row=2, col=1)
-    
     # Layout
     legend = go.layout.Legend(
         xanchor='right',
@@ -500,12 +483,10 @@ def generate_variance_figure(dataframe):
     )
     
     fig.update_layout(
-        xaxis2={'title': 'Block'},
         barmode='group',
         bargap=0.15,  # Gap between bars of adjacent location coordinates.
         bargroupgap=0.1,  # Gap between bars of the same location coordinate.
         margin=theme['graph_margins'],
-        showlegend=True,
         legend=legend,
         hovermode='closest',
     )
@@ -602,7 +583,7 @@ def get_pca_columns_settings(dataframe):
                                              symbol=Symbol.yes,
                                              symbol_suffix=u'˚')})
         else:
-            columns.append({'name': c, 'id': c})
+            columns.append({'name': c, 'id': c, 'type': table_type(dataframe[c])})
     return columns
 
 
