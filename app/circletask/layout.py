@@ -331,6 +331,7 @@ def generate_grab_figure(dataframe, feature='duration'):
                       box_visible=True,
                       scalemode='count')  # scale violin plot area with total count
     fig.update_layout(violingap=0, violingroupgap=0, violinmode='overlay')
+    fig.update_xaxes(tickvals=dataframe['block'].unique())
     return fig
 
 
@@ -347,7 +348,6 @@ def generate_histograms(dataframe):
     )
     
     cols = list(dataframe.columns)
-    #cols.reverse()
     if dataframe.empty:
         fig = go.Figure()
         fig.update_xaxes(range=[0, 100])
@@ -397,12 +397,14 @@ def generate_pca_figure(dataframe):
     
     try:
         fig = px.bar(dataframe, x='block', y='var_expl', barmode='group', color='PC')
-        fig.update_traces(texttemplate='%{y:.2f}%', textposition='outside')
-        data = fig.data
+        fig.update_xaxes(tickvals=dataframe['block'].unique())
     except (KeyError, ValueError):
-        data = []
+        fig = go.Figure()
+    else:
+        fig.update_traces(texttemplate='%{y:.2f}%', textposition='outside')
+    finally:
+        fig.layout.update(**layout)
     
-    fig = dict(data=data, layout=layout)  # FixMe: Legend labels, hover template
     return fig
 
 
@@ -410,7 +412,7 @@ def generate_means_figure(dataframe, variables=None):
     """ Barplots for variables grouped by block.
     Variable for each user is plotted as well as mean over all users.
     
-    :param dataframe: Data of variances.
+    :param dataframe: Data with variables.
     :type dataframe: pandas.DataFrame
     :param variables: Variables to plot by block. List of dicts with 'label' and 'var' keys.
     :type variables: list[dict]
