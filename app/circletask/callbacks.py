@@ -770,6 +770,10 @@ def register_callbacks(dashapp):
     def set_trials_plot(pca_data, show_pca, table_data, stored_data, contour):
         """ Update the graph for displaying trial data as scatter plot. """
         df = records_to_df(table_data)
+        try:
+            df[['user', 'block', 'constraint']] = df[['user', 'block', 'constraint']].astype('category')
+        except KeyError:
+            pass
         z = np.array(contour)
         fig = layout.generate_trials_figure(df, contour_data=z)
         
@@ -789,7 +793,7 @@ def register_callbacks(dashapp):
         df = records_to_df(table_data)
         try:
             fig_dfs = layout.generate_histograms(df[['df1', 'df2']])
-            fig_sum = layout.generate_histograms(df[['sum']])
+            fig_sum = layout.generate_histograms(df[['block', 'sum']], by='block')
         except KeyError:
             fig = layout.generate_histograms(pd.DataFrame())
             return fig, fig

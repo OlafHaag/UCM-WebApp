@@ -173,7 +173,7 @@ def generate_trials_figure(df, contour_data=None):
         data = [go.Scattergl(
             x=df[df['block'] == i]['df1'],
             y=df[df['block'] == i]['df2'],
-            text=[f"df1={j['df1']}<br />df2={j['df2']}<br />Sum={j['sum']:.2f}<br />Participant {j['user']}"
+            text=[f"df1={j['df1']:.2f}<br />df2={j['df2']:.2f}<br />Sum={j['sum']:.2f}<br />Participant {j['user']}"
                   f"<br />Block {i}"
                   for _, j in df[df['block'] == i].iterrows()],
             hoverinfo='text',
@@ -195,15 +195,13 @@ def generate_trials_figure(df, contour_data=None):
     fig = go.Figure(
         data=data,
         layout=go.Layout(
-            xaxis={'title': 'Degree of Freedom 1'},
-            yaxis={'title': 'Degree of Freedom 2', 'scaleanchor': 'x', 'scaleratio': 1},
+            xaxis={'title': 'Degree of Freedom 1', 'range': [0, 100], 'constrain': 'domain'},
+            yaxis={'title': 'Degree of Freedom 2', 'range': [0, 100], 'scaleanchor': 'x', 'scaleratio': 1},
             margin=theme['graph_margins'],
             legend=legend,
             hovermode='closest',
         )
     )
-    fig.update_xaxes(range=[0, 100])
-    fig.update_yaxes(range=[0, 100])
     # Task goal 1 visualization.
     fig.add_trace(go.Scatter(
         x=[25, 100],
@@ -212,6 +210,7 @@ def generate_trials_figure(df, contour_data=None):
         name="task goal 1",
         marker={'color': 'black',
                 },
+        hovertemplate="df1+df2=125",
     ))
     # Task goal 2 (DoF constrained) visualization.
     fig.add_scatter(y=[62.5], x=[62.5],
@@ -332,14 +331,17 @@ def generate_grab_figure(dataframe, feature='duration'):
                       scalemode='count')  # scale violin plot area with total count
     fig.update_layout(violingap=0, violingroupgap=0, violinmode='overlay')
     fig.update_xaxes(tickvals=dataframe['block'].unique())
+    fig.update_yaxes(zeroline=True, zerolinewidth=2, zerolinecolor='LightPink')
     return fig
 
 
-def generate_histograms(dataframe):
+def generate_histograms(dataframe, by=None):
     """ Plot distribution of data to visually check for normal distribution.
     
-    :param dataframe: Data of df1, df2 and their sum.
+    :param dataframe: Data for binning. When by is given this must be only 2 columns with one of them being the grouper.
     :type dataframe: pandas.DataFrame
+    :param by: dataframe column to group data by.
+    :type by: str
     """
     legend = go.layout.Legend(
         xanchor='right',
@@ -352,17 +354,26 @@ def generate_histograms(dataframe):
         fig = go.Figure()
         fig.update_xaxes(range=[0, 100])
     else:
-        # Columns we want to plot histograms for. Display order is reversed.
-        data = [dataframe[c] for c in dataframe.columns]
-        # Create distplot with curve_type set to 'normal'.
-        fig = ff.create_distplot(data,  dataframe.columns, curve_type='normal')  # Override default 'kde'.
-    
+        if not by:
+            # Columns we want to plot histograms for. Display order is reversed.
+            data = [dataframe[c] for c in dataframe.columns]
+            # Create distplot with curve_type set to 'normal'.
+            fig = ff.create_distplot(data,  dataframe.columns, curve_type='normal')  # Override default 'kde'.
+        else:
+            data = list()
+            labels = list()
+            grouped = dataframe.groupby(by)
+            for name, df in grouped:
+                data.append(df.drop(columns=by).squeeze())
+                labels.append(f"{by.capitalize()} {name}")  # Potential risk when 'by' is a list.
+            fig = ff.create_distplot(data,  labels, curve_type='normal')  # Override default 'kde'.
+            
     # Set theme colors for traces.
-    for data in fig.data:
+    for i, data in enumerate(fig.data):
         try:
             data.marker.color = theme[data.name]
         except KeyError:
-            pass
+            data.marker.color = theme['colors'][i+1]
         
     fig.layout.update(legend=legend,
                       yaxis={'title': 'Probability Density'},
