@@ -364,7 +364,7 @@ def generate_histograms(dataframe, by=None):
             labels = list()
             grouped = dataframe.groupby(by)
             for name, df in grouped:
-                data.append(df.drop(columns=by).squeeze())
+                data.append(df.drop(columns=by).squeeze(axis='columns'))
                 labels.append(f"{by.capitalize()} {name}")  # Potential risk when 'by' is a list.
             fig = ff.create_distplot(data,  labels, curve_type='normal')  # Override default 'kde'.
             
