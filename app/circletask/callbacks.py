@@ -108,11 +108,11 @@ def get_one_or_create(model,
                 if new_instance:
                     db.session.add(new_instance)
             return result(new_instance, True)
-        except IntegrityError:
+        except IntegrityError as e:
             try:
                 return result(model.query.filter_by(**kwargs).one(), False)
             except NoResultFound:
-                raise ModelCreationError("ERROR: Integrity compromised.\nFailed to get or create model.")
+                raise ModelCreationError(f"{e.orig.args[0]}")
 
 
 @raise_on_error
@@ -142,7 +142,9 @@ def new_user(**kwargs):
     :rtype: User
     """
     user = User(id=kwargs['id'],
-                device_id=kwargs['device_id'])
+                device_id=kwargs['device_id'],
+                age_group=kwargs['age_group'],
+                gender=kwargs['gender'])
     return user
 
 
@@ -208,9 +210,27 @@ def add_to_db(device_kwargs, user_kwargs, blocks_kwargs, trials_kwargs):
     # Create model instances.
     try:
         device = get_one_or_create(Device, create_func=new_device, **device_kwargs).instance
-        user, is_new_user = get_one_or_create(User, create_func=new_user, **user_kwargs)
     except ModelCreationError:
         raise
+    
+    try:
+        user, is_new_user = get_one_or_create(User, create_func=new_user, **user_kwargs)
+    except ModelCreationError:
+        # There seems to be a conflict between incoming and existing user data.
+        # A user could change their age and gender, so we update it.
+        # This, of course. bears the risk of changing demographic statistics for other studies,
+        # but for now we roll with it.
+        # ToDo: Maybe a combined primary key of id, age, gender is the solution for changing user demographic.
+        try:
+            user = db.session.query(User).get(user_kwargs['id'])
+        except NoResultFound:
+            raise ModelCreationError("ERROR: Could neither retrieve, nor create user.")
+        # Update age & gender.
+        try:
+            user.age_group = user_kwargs['age_group']
+            user.gender = user_kwargs['gender']
+        except KeyError:
+            raise ModelCreationError("ERROR: Missing user data.")
     
     # Add blocks to db.
     task_err_msg = "ERROR: Failed to identify session as 'Circle Task'."
@@ -408,8 +428,11 @@ def get_user_properties(csv_file):
     :rtype: dict
     """
     try:
-        # For device and user we expect them to contain only 1 entry.
-        props = pd.read_csv(csv_file).iloc[0].to_dict()  # df->Series->dict
+        # We expect the user data to contain only 1 entry.
+        df = pd.read_csv(csv_file)
+        # We need to convert NaN to None for SQL to work.
+        df = df.where(pd.notnull(df), None)
+        props = df.iloc[0].to_dict()  # df->Series->dict
     except IOError:
         raise UploadError("ERROR: Failed to read file contents for user.")
     except IndexError:

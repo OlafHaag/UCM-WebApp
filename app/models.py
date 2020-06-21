@@ -47,11 +47,14 @@ class User(db.Model):
     
     id = db.Column(db.String(32), primary_key=True, comment="Unique identifier for a user.")
     device_id = db.Column(db.String(8), db.ForeignKey('devices.id'), nullable=False, comment="Device used by user.")
+    age_group = db.Column(db.String(5), unique=False, nullable=True, comment="Approximate age of user.")
+    gender = db.Column(db.String(1), unique=False, nullable=True, comment="Gender identification of user.")
     blocks_ct = db.relationship('CircleTaskBlock', backref='user')
     trials_ct = db.relationship('CircleTaskTrial', backref='user')  # Shortcut to trials. ToDo: Really necessary?
     
     def __repr__(self):
-        return f"User(id='{self.id}', device_id='{self.device_id}')"
+        return f"User(id='{self.id}', device_id='{self.device_id}', age_group='{self.age_group}', " \
+               f"gender='{self.gender}')"
 
 
 class CircleTaskBlock(db.Model):
