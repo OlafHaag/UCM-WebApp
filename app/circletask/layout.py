@@ -357,24 +357,28 @@ def generate_histograms(dataframe, by=None):
         if not by:
             # Columns we want to plot histograms for. Display order is reversed.
             data = [dataframe[c] for c in dataframe.columns]
-            # Create distplot with curve_type set to 'normal'.
-            fig = ff.create_distplot(data,  dataframe.columns, curve_type='normal')  # Override default 'kde'.
+            try:
+                colors = [theme[c] for c in dataframe.columns]
+            except KeyError:
+                colors = [theme['colors'][i + 1] for i in range(len(dataframe.colums))]
+            # Create distplot with curve_type set to 'normal', overriding default 'kde'.
+            fig = ff.create_distplot(data,  dataframe.columns, colors=colors, curve_type='normal')
         else:
             data = list()
             labels = list()
+            colors = list()
             grouped = dataframe.groupby(by)
-            for name, df in grouped:
+            for i, (name, df) in enumerate(grouped):
                 data.append(df.drop(columns=by).squeeze(axis='columns'))
                 labels.append(f"{by.capitalize()} {name}")  # Potential risk when 'by' is a list.
-            fig = ff.create_distplot(data,  labels, curve_type='normal')  # Override default 'kde'.
+                # Set theme colors for traces.
+                try:
+                    color = theme[name]
+                except KeyError:
+                    color = theme['colors'][i+1]
+                colors.append(color)
+            fig = ff.create_distplot(data,  labels, colors=colors, curve_type='normal')  # Override default 'kde'.
             
-    # Set theme colors for traces.
-    for i, data in enumerate(fig.data):
-        try:
-            data.marker.color = theme[data.name]
-        except KeyError:
-            data.marker.color = theme['colors'][i+1]
-        
     fig.layout.update(legend=legend,
                       yaxis={'title': 'Probability Density'},
                       xaxis={'title': 'Endpoint Value'},
