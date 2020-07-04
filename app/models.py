@@ -49,12 +49,15 @@ class User(db.Model):
     device_id = db.Column(db.String(8), db.ForeignKey('devices.id'), nullable=False, comment="Device used by user.")
     age_group = db.Column(db.String(5), unique=False, nullable=True, comment="Approximate age of user.")
     gender = db.Column(db.String(1), unique=False, nullable=True, comment="Gender identification of user.")
+    gaming_exp = db.Column(db.Integer, unique=False, nullable=True,
+                           comment="How much experience with two-handed mobile games does the user have? "
+                                   "daily, several times a week, several times a month, several times a year, never")
     blocks_ct = db.relationship('CircleTaskBlock', backref='user')
     trials_ct = db.relationship('CircleTaskTrial', backref='user')  # Shortcut to trials. ToDo: Really necessary?
     
     def __repr__(self):
         return f"User(id='{self.id}', device_id='{self.device_id}', age_group='{self.age_group}', " \
-               f"gender='{self.gender}')"
+               f"gender='{self.gender}', gaming_exp='{self.gaming_exp}')"
 
 
 class CircleTaskBlock(db.Model):
@@ -91,6 +94,9 @@ class CircleTaskBlock(db.Model):
                      comment="Time at which a block was finished, in seconds since epoch.")
     time_iso = db.Column(db.DateTime, unique=False, nullable=False, default=datetime.utcnow,
                          comment="Time at which a block was finished, in ISO format.")
+    rating = db.Column(db.Integer, unique=False, nullable=True,
+                           comment="The user's perceived difficulty of the block on a Likert Scale. "
+                                   "Very easy - 0,  Easy - 1,  Neutral - 2, Difficult - 3, Very difficult - 4")
     hash = db.Column(db.String(32), unique=True, nullable=False,
                      comment="MD5 hash value for all the trials of a block. Used to check integrity of submitted data.")
     
@@ -99,7 +105,7 @@ class CircleTaskBlock(db.Model):
     def __repr__(self):
         return f"CircleTaskBlock(user_id='{self.user_id}', session_uid={self.session_uid}, " \
                f"nth_session={self.nth_session}, nth_block={self.nth_block}, treatment='{self.treatment}', "\
-               f"time={self.time}, time_iso='{self.time_iso}', hash='{self.hash}')"
+               f"time={self.time}, time_iso='{self.time_iso}', rating='{self.rating}', hash='{self.hash}')"
 
 
 class CircleTaskTrial(db.Model):

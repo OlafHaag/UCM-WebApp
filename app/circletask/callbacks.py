@@ -144,7 +144,9 @@ def new_user(**kwargs):
     user = User(id=kwargs['id'],
                 device_id=kwargs['device_id'],
                 age_group=kwargs['age_group'],
-                gender=kwargs['gender'])
+                gender=kwargs['gender'],
+                gaming_exp=kwargs.get('gaming_exp', None),  # Gaming experience might not be measured by all studies.
+                )
     return user
 
 
@@ -169,7 +171,9 @@ def new_circletask_block(**kwargs):
                             cool_down=kwargs['cool_down'],
                             time=kwargs['time'],
                             time_iso=kwargs['time_iso'],
-                            hash=kwargs['hash'])
+                            hash=kwargs['hash'],
+                            rating=kwargs['rating'],
+                            )
     return block
 
 
@@ -229,6 +233,7 @@ def add_to_db(device_kwargs, user_kwargs, blocks_kwargs, trials_kwargs):
         try:
             user.age_group = user_kwargs['age_group']
             user.gender = user_kwargs['gender']
+            user.gaming_exp = user_kwargs.get('gaming_exp', None)
         except KeyError:
             raise ModelCreationError("ERROR: Missing user data.")
     
