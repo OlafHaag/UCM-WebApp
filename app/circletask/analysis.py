@@ -57,51 +57,32 @@ def get_valid_trials(dataframe):
     # Remove trials where sliders where not grabbed concurrently.
     mask = ~((df['df1_release'] <= df['df2_grab']) | (df['df2_release'] <= df['df1_grab']))
     df = df[mask]
+    df['grab diff'] = (df['df2_grab'] - df['df1_grab']).abs()
     return df
     
     
-def get_descriptive_stats(dataframe):
-    """ Get descriptive statistics from trial data.
+def get_outlyingness(data, contamination=0.1):
+    """ Outlier detection from covariance estimation in a Gaussian distributed dataset.
     
-    :param dataframe: Data
-    :type dataframe: pandas.Dataframe
-    :return: Means, variances for df1, df2 and their sum.
-    :rtype: pandas.DataFrame
+    :param data: Data in which to detect outliers. Take care that n_samples > n_features ** 2 .
+    :type data: pandas.DataFrame
+    :param contamination: The amount of contamination of the data set, i.e. the proportion of outliers in the data set.
+    Range is (0, 0.5).
+    :type contamination: float
+    :returns: Decision on each row if it's an outlier. And contour array for drawing ellipse in graph.
+    :rtype: tuple[numpy.ndarray, numpy.ndarray]
     """
-    vars = ['df1', 'df2', 'sum']
-    group_vars = ['user', 'block', 'constraint']
-    agg_funcs = ['mean', 'var']
-    try:
-        grouped = dataframe.groupby(group_vars)
-        variances = grouped.agg({v: agg_funcs for v in vars})
-    except (KeyError, pd.core.base.DataError):
-        # Create empty DataFrame with columns.
-        return pd.DataFrame(None, columns=group_vars + [" ".join(i) for i in itertools.product(vars, agg_funcs)])
+    robust_cov = EllipticEnvelope(support_fraction=1., contamination=contamination)
+    outlyingness = robust_cov.fit_predict(data)
+    decision = (outlyingness-1).astype(bool)
     
-    variances.columns = [" ".join(x) for x in variances.columns.ravel()]
-    variances.columns = [x.strip() for x in variances.columns]
-    variances.dropna(inplace=True)
-    variances.reset_index(inplace=True)
-    return variances
-
-
-def get_mean(dataframe, column, by=None):
-    """ Return mean values of column x (optionally grouped)
+    # Visualisation.
+    xx, yy = np.meshgrid(np.linspace(0, 100, 101),
+                         np.linspace(0, 100, 101))
+    z = robust_cov.predict(np.c_[xx.ravel(), yy.ravel()])
+    z = z.reshape(xx.shape)
     
-    :param dataframe: Data
-    :type dataframe: pandas.Dataframe
-    :param column: Column name
-    :type column: str
-    :param by: Column names by which to group.
-    :type by: str|list
-    :return: mean value, optionally for each group.
-    :rtype: numpy.float64|pandas.Series
-    """
-    if by is None:
-        means = dataframe[column].mean()
-    else:
-        means = dataframe.groupby(by)[column].mean()
-    return means
+    return decision, z
 
 
 def get_pca_data(dataframe):
@@ -241,30 +222,6 @@ def get_pc_ucm_angles(dataframe, vec_ucm):
     return df_angles
 
 
-def get_outlyingness(data, contamination=0.1):
-    """ Outlier detection from covariance estimation in a Gaussian distributed dataset.
-    
-    :param data: Data in which to detect outliers. Take care that n_samples > n_features ** 2 .
-    :type data: pandas.DataFrame
-    :param contamination: The amount of contamination of the data set, i.e. the proportion of outliers in the data set.
-    Range is (0, 0.5).
-    :type contamination: float
-    :returns: Decision on each row if it's an outlier. And contour array for drawing ellipse in graph.
-    :rtype: tuple[numpy.ndarray, numpy.ndarray]
-    """
-    robust_cov = EllipticEnvelope(support_fraction=1., contamination=contamination)
-    outlyingness = robust_cov.fit_predict(data)
-    decision = (outlyingness-1).astype(bool)
-    
-    # Visualisation.
-    xx, yy = np.meshgrid(np.linspace(0, 100, 101),
-                         np.linspace(0, 100, 101))
-    z = robust_cov.predict(np.c_[xx.ravel(), yy.ravel()])
-    z = z.reshape(xx.shape)
-    
-    return decision, z
-
-
 def get_projections(points, vec_ucm):
     """ Returns coefficients a and b in x = a*vec_ucm + b*vec_ortho with x being the difference of a data point and
     the mean.
@@ -280,27 +237,96 @@ def get_projections(points, vec_ucm):
     # Get the vector orthogonal to the UCM.
     vec_ortho = get_orthogonal_vec2d(vec_ucm)
     # Build a transformation matrix with vec_ucm and vec_ortho as new basis vectors.
-    A = np.vstack((vec_ucm, vec_ortho)).T
-    # Centralize the data.
+    A = np.vstack((vec_ucm, vec_ortho)).T  # A is not an orthogonal projection matrix (A=A.T), but this works.
+    # Centralize the data. Analogous to calculating across trials deviation from average for each time step.
     diffs = points - points.mean()
-    # For computational efficiency we shortcut the calculation with matrix multiplication.
+    # For computational efficiency we shortcut the projection calculation with matrix multiplication.
     coeffs = diffs@A
     coeffs.columns = ['parallel', 'orthogonal']
     return coeffs
 
 
-def abs_average(series):
-    """ Aggregate function for returning the mean of absolute values in the series.
-    
-    :param series: Data to get average of absolutes.
-    :type series: pandas.Series
-    :return: Average of absolute values.
-    :rtype: float
+def get_synergy_indices(variances, n=2, d=1):
     """
-    return series.abs().mean()
+    n: Number of degrees of freedom. In our case 2.
+    
+    d: Dimensionality of performance variable. In our case a scalar (1).
+    
+    Vucm = 1/N * 1/(n-d) * sum(ProjUCM**2)
+    
+    Vort = 1/N * 1/(d) * sum(ProjORT**2)
+    
+    Vtotal = 1/n * (d*Vort + (n-d)*Vucm)
+    
+    dV = (Vucm - Vort)/Vtotal
+    
+    dV = n*(Vucm - Vort)/((n-d)*Vucm + d*Vort)
+    
+    dVz = 0.5*ln((n/d + dV)/(n/((n-d)-dV))
+    dVz = 0.5*ln((2+dV)/(2-dV))
+    Reference: https://www.frontiersin.org/articles/10.3389/fnagi.2019.00032/full#supplementary-material
+    
+    :param variances: Variances of parallel and orthogonal projections to the UCM.
+    :type variances: pandas.DataFrame
+    :param n: Number of degrees of freedom. Defaults to 2.
+    :type: int
+    :param d: Dimensionality of performance variable. Defaults to 1.
+    :type d: int
+    :returns: Synergy index, Fisher's z-transformed synergy index.
+    :rtype: pandas.DataFrame
+    """
+    try:
+        dV = (n * (variances['parallel'] - variances['orthogonal'])) \
+            / ((n-d) * variances[['parallel', 'orthogonal']].sum(axis='columns'))
+    except KeyError:
+        synergy_indices = pd.DataFrame(columns=["$\\Delta V$", "$\\Delta V_{z} $"])
+    else:
+        dVz = 0.5 * np.log((n/d + dV)/(n/(n-d) - dV))
+        synergy_indices = pd.DataFrame({"$\\Delta V$": dV, "$\\Delta V_z$": dVz})
+    return synergy_indices
 
 
-def get_stats(data, by=None):
+def get_synergy_idx_bounds(n=2, d=1):
+    """ Get upper and lower bounds of the synergy index.
+    
+     dV = n*(Vucm - Vort)/((n-d)*Vucm + d*Vort)
+     
+     If all variance lies within the UCM, then Vort=0 and it follows for the upper bound: dV = n/(n-d)
+     
+     If all variance lies within Vort, then Vucm=0 and it follows for the lower bound: dV = -n/d
+    
+    :param n: Number of degrees of freedom.
+    :type: int
+    :param d: Dimensionality of performance variable.
+    :type d: int
+    :returns: Upper and lower bounds of synergy index.
+    :rtype: tuple
+    """
+    dV_upper = n/(n-d)
+    dV_lower = -n/d
+    return dV_upper, dV_lower
+    
+    
+def get_mean(dataframe, column, by=None):
+    """ Return mean values of column x (optionally grouped)
+    
+    :param dataframe: Data
+    :type dataframe: pandas.Dataframe
+    :param column: Column name
+    :type column: str
+    :param by: Column names by which to group.
+    :type by: str|list
+    :return: mean value, optionally for each group.
+    :rtype: numpy.float64|pandas.Series
+    """
+    if by is None:
+        means = dataframe[column].mean()
+    else:
+        means = dataframe.groupby(by)[column].mean()
+    return means
+
+
+def get_descriptive_stats(data, by=None):
     """ Return mean and variance statistics for data.
     
     :param data: numerical data.
@@ -310,28 +336,68 @@ def get_stats(data, by=None):
     :return: Dataframe with columns mean, var, count and column names of data as rows.
     :rtype: pandas.Dataframe
     """
+    # There's a bug in pandas 1.0.4 where you can't use custom numpy functions in agg anymore (ValueError).
+    # Note that the variance of projections is usually divided by (n-d) for Vucm and d for Vort. Both are 1 in our case.
+    f_var = lambda series: series.var(ddof=0)  # pandas default var returns population variance (n-1).
+    f_var.__name__ = 'variance'  # Column name gets function name.
+    f_avg = lambda series: series.abs().mean()
+    f_avg.__name__ = 'absolute average'
     # When there're no data, return empty DataFrame with columns.
     if data.empty:
-        idx = pd.MultiIndex.from_product([data.columns, ['avg', 'mean', 'var']])
-        stats = pd.DataFrame(None, columns=idx)
+        if by:
+            data.set_index(by, drop=True, inplace=True)
+        col_idx = pd.MultiIndex.from_product([data.columns, [f_avg.__name__, 'mean', f_var.__name__]])
+        stats = pd.DataFrame(None, index=data.index, columns=col_idx)
         stats['count'] = None
-        try:
-            stats.drop(by, axis='columns', level=0, inplace=True)
-            stats.insert(0, by, None)
-        except (ValueError, KeyError):
-            pass
         return stats
     
     if not by:
-        stats = data.agg([abs_average, 'mean', 'var', 'count']).T
-        stats.rename({'var': 'variance', 'abs_average': 'absolute average'}, axis='columns', inplace=True)
+        stats = data.agg([f_avg, 'mean', f_var, 'count']).T
         stats['count'] = stats['count'].astype(int)
     else:
         grouped = data.groupby(by)
-        stats = grouped.agg([abs_average, 'mean', 'var'])
+        stats = grouped.agg([f_avg, 'mean', f_var])
         stats['count'] = grouped.size()
-        stats.rename({'var': 'variance', 'abs_average': 'absolute average'}, level=1, axis='columns', inplace=True)
-        stats.reset_index(inplace=True)
+        stats.dropna(inplace=True)
     return stats
+
+
+def get_statistics(df_trials, df_proj):
+    """
     
-# ToDo: distribution of residuals. 6 months later: What residuals?!
+    :return:
+    """
+    groupers = ['user', 'session', 'block']
+    try:
+        # Get only those trials we have the projections for, in the same order.
+        df_trials = df_trials.iloc[df_proj.index]
+        df_trials[groupers] = df_trials[groupers].astype('category')
+    except (KeyError, ValueError):
+        df_proj_stats = get_descriptive_stats(df_proj)
+        df_dof_stats = get_descriptive_stats(pd.DataFrame(columns=df_trials.columns))
+        constraints = pd.Series(name='constraint')
+    else:
+        df_proj[groupers] = df_trials[groupers]
+        # Get statistic characteristics of absolute lengths.
+        df_proj_stats = get_descriptive_stats(df_proj, by=groupers)
+        # Clean-up to match data on degrees of freedom.
+        df_proj_stats.dropna(inplace=True)
+        df_dof_stats = get_descriptive_stats(df_trials[groupers + ['df1', 'df2', 'sum']], by=groupers)
+        # For degrees of freedom absolute average is the same as the mean, since there are no negative values.
+        df_dof_stats.drop('absolute average', axis='columns', level=1, inplace=True)
+        # We lost the constraint column along the way, reconstruct it with same index as descriptive statistics.
+        constraints = df_trials.groupby(groupers)['constraint'].unique().dropna().apply(",".join)
+
+    # We now have 1 count column too many, since the projection statistics already has the identical column.
+    df_dof_stats.drop('count', axis='columns', level=0, inplace=True)
+    # For projections the mean is 0, since projections are from deviations from the mean. So we don't need to show it.
+    df_proj_stats.drop('mean', axis='columns', level=1, inplace=True)
+    # Get synergy indices based on projection variances we just calculated.
+    df_synergies = get_synergy_indices(df_proj_stats.xs('variance', level=1, axis='columns'))
+    # Before we merge dataframes, give this one a Multiindex, too.
+    df_synergies.columns = pd.MultiIndex.from_product([df_synergies.columns, ['']])
+    # Join the 3 statistics to be displayed in a single table.
+    df = pd.concat((df_dof_stats, df_proj_stats, df_synergies), axis='columns')
+    # Re-introduce constraint column.
+    df.insert(0, constraints.name, constraints)
+    return df

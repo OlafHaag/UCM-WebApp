@@ -55,9 +55,12 @@ theme = {'font-family': 'Lobster',
          'background-color': '#e7ecf7',
          'height': '60vh',
          'graph_margins': {'l': 40, 'b': 40, 't': 40, 'r': 10},
+         # Use colors consistently to quickly grasp what is what.
          'df1': 'cornflowerblue',
          'df2': 'palevioletred',
          'sum': 'peru',
+         'parallel': 'lawngreen',
+         'orthogonal': 'salmon',
          'colors': px.colors.qualitative.Plotly,
          }
 
@@ -174,7 +177,7 @@ def generate_trials_figure(df, contour_data=None):
             x=df[df['block'] == i]['df1'],
             y=df[df['block'] == i]['df2'],
             text=[f"df1={j['df1']:.2f}<br />df2={j['df2']:.2f}<br />Sum={j['sum']:.2f}<br />Participant {j['user']}"
-                  f"<br />Block {i}"
+                  f"<br />Session {j['session']}<br />Block {i}<br />Trial {j['trial']}"
                   for _, j in df[df['block'] == i].iterrows()],
             hoverinfo='text',
             mode='markers',
@@ -183,7 +186,7 @@ def generate_trials_figure(df, contour_data=None):
                     'color': theme['colors'][i],
                     'line': {'width': 0.5, 'color': 'white'}
                     },
-            name=f"Block {i} {'|'.join(df[df['block'] == i]['constraint'].unique())}",
+            name=f"Block {i} {','.join(df[df['block'] == i]['constraint'].unique())}",
         ) for i in df['block'].unique()]
 
     legend = go.layout.Legend(
@@ -282,9 +285,9 @@ def get_pca_annotations(pca_dataframe):
 
 
 def generate_grab_figure(dataframe, feature='duration'):
-    """ Plot duration of slider grabs.
+    """ Plot duration, onset or release of slider grabs.
     
-    :param dataframe:
+    :param dataframe: Trial data.
     :type dataframe: pandas.DataFrame
     :param feature: Which variable of df1 and df2 is to be plotted. One of 'duration', 'grab', 'release'
     :type feature: str
@@ -434,7 +437,7 @@ def generate_means_figure(dataframe, variables=None):
     :return: Figure object.
     """
     if not variables:
-        variables = [{'label': 'Sum Variance', 'var': 'sum var'},
+        variables = [{'label': 'Sum Variance', 'var': 'sum variance'},
                      {'label': 'Sum Mean', 'var': 'sum mean'}]
         
     fig = make_subplots(rows=len(variables), cols=1,
@@ -510,6 +513,58 @@ def generate_means_figure(dataframe, variables=None):
     return fig
 
 
+def generate_violin_figure(dataframe, columns, ytitle):
+    """ Plot 2 columns of data as violin plot, grouped by block.
+
+    :param dataframe: Variance of projections.
+    :type dataframe: pandas.DataFrame
+    :param columns: 2 columns for the negative and the positive side of the violins.
+    :type columns: list
+    :param ytitle: Title of Y-axis. What is being plotted? What are the units of the data?
+    :type ytitle: str
+
+    :return: Figure object of graph.
+    :rtype: plotly.graph_objs.Figure
+    """
+    legend = go.layout.Legend(
+        xanchor='right',
+        yanchor='top',
+        orientation='v',
+    )
+    
+    fig = go.Figure()
+    fig.layout.update(xaxis_title='Block',
+                      yaxis_title=ytitle,
+                      legend=legend,
+                      margin=theme['graph_margins'])
+    if dataframe.empty:
+        return fig
+    
+    # Make sure we plot only 2 columns, left and right.
+    columns = columns[:2]
+    sides = ('negative', 'positive')
+    grouped = dataframe.groupby('block')
+    for name, group_df in grouped:
+        for i, col in enumerate(columns):
+            fig.add_trace(go.Violin(x=group_df['block'],
+                                    y=group_df[col],
+                                    legendgroup=col, scalegroup=col, name=col,
+                                    side=sides[i],
+                                    line_color=theme[col],
+                                    showlegend=bool(name == dataframe['block'].unique()[0]),  # Only 1 legend.
+                                    )
+                          )
+    
+    # update characteristics shared by all traces
+    fig.update_traces(meanline_visible=True,
+                      box_visible=True,
+                      scalemode='count')  # scale violin plot area with total count
+    fig.update_layout(violingap=0, violingroupgap=0, violinmode='overlay')
+    fig.update_xaxes(tickvals=dataframe['block'].unique())
+    fig.update_yaxes(zeroline=True, zerolinewidth=2, zerolinecolor='LightPink')
+    return fig
+
+
 ###############
 #   Tables.   #
 ###############
@@ -558,17 +613,28 @@ def table_type(df_column):
         return 'any'
     
     
-def get_columns_settings(dataframe):
+def get_columns_settings(dataframe, order=None):
     """ Get display settings of columns for tables.
     
     :param dataframe: Data
     :type dataframe: pandas.DataFrame
-    :return: List of dicts.  Columns displaying float values have special formatting.
+    :param order: Custom order for columns. Use position, in case names change.
+    :type order: list[int]
+    :return: List of dicts. Columns displaying float values have special formatting.
     :rtype: list
     """
     columns = list()
-    for c in dataframe.columns:
-        # Nicer column names. Exclude df1 and df2.
+    if order is None:
+        cols = dataframe.columns
+    else:
+        # Reorder columns.
+        try:
+            cols = [dataframe.columns[i] for i in order]
+        except IndexError:
+            print("WARNING: Order of columns out of range.")
+            cols = dataframe.columns
+    for c in cols:
+        # Nicer column names. Exclude df1 and df2 from renaming.
         label = c.replace("_", " ").title().replace("Df1", "df1").replace("Df2", "df2")
         if dataframe[c].dtype == 'float':
             columns.append({'name': label,
@@ -638,14 +704,14 @@ def generate_table(dataframe, table_id):
             {'if': {'column_id': 'user'},
              'width': '5%'},
             {'if': {'column_id': 'session'},
-             'width': '8%'},
+             'width': '7%'},
             {'if': {'column_id': 'block'},
              'width': '5%'},
             {'if': {'column_id': 'constraint'},
              'width': '8%'},
             {'if': {'column_id': 'outlier'},
+             'width': '5.5%'},
             # 'display': 'none',
-             'width': '7%'},
         ],
         style_data={'border': '0px'},
         style_data_conditional=[
@@ -745,14 +811,14 @@ def create_content():
                                                                        min=0.0,
                                                                        max=0.5,
                                                                        value=0.05,
-                                                                       step=0.01,
-                                                                       style={'width': '7rem'},
+                                                                       step=0.001,
+                                                                       style={'width': '8rem'},
                                                                        ),
                                                                    ],
                                                                    ),
                                                          ]),
-                                      dcc.Markdown("*Figure 3.* Endpoint values of degrees of freedom 1 and 2, colored "
-                                                   "by block. "
+                                      dcc.Markdown("*Figure 3.* Final state values of degrees of freedom 1 and 2, "
+                                                   "colored by block. "
                                                    "The subspace of task goal 1 is presented as a line. The 2 possible "
                                                    "goals for the concurrent tasks are represented as larger discs."
                                                    " Only one of these goals is selected for a constrained block. "
@@ -764,19 +830,18 @@ def create_content():
                             )
     
     trials_table = get_table_div(generate_table(df, 'trials-table'), 1,
-                                 "Endpoint values of slider positions",
+                                 "Final state values of slider positions",
                                  "The goal of task 1 is to match the sum of df1 and df2 "
                                  "to be equal to 125. Outliers are identified using the robust "
                                  "covariance method and are colored in red.  \n" + filter_hint)
     
-    grab_onset_graph = get_figure_div(dcc.Graph(id='onset-dfs'), 4,
-                                         "Onset of sliders for df1 and df2 being grabbed.")
+    grab_onset_graph = get_figure_div(dcc.Graph(id='onset-dfs'), 4, "Onset of sliders for df1 and df2 being grabbed.")
     
     grab_duration_graph = get_figure_div(dcc.Graph(id='duration-dfs'), 5,
                                          "Duration of sliders for df1 and df2 being grabbed.")
     
-    hist_graph_dfs = get_figure_div(dcc.Graph(id='histogram-dfs'), 6, "Histograms of endpoint values for df1 and df2 "
-                                                                      "compared to normal distributions.")
+    hist_graph_dfs = get_figure_div(dcc.Graph(id='histogram-dfs'), 6, "Histograms of final state values for df1 and "
+                                                                      "df2 compared to normal distributions.")
     
     hist_graph_sum = get_figure_div(dcc.Graph(id='histogram-sum'), 7, "Histogram of the sum of df1 and df2 "
                                                                       "compared to a normal distribution.")
@@ -801,15 +866,11 @@ def create_content():
                                "Mean of the sum of df1 and df2.")
     var_graph.style = {'marginTop': '70px'}  # Match it to the table y position.
     
-    var_table = get_table_div(generate_table(df, 'variance-table'), 4,
-                              "Means and variances of df1, df2 and their sum",
-                              filter_hint)
-    
     # Table of projections' length mean and variance.
     # ToDo: When LaTeX rendering is supported in dash Markdown, convert.
-    proj_table = html.Div(className='six columns',
-                          children=[generate_simple_table(df, 'proj-table'),
-                                    html.P("Table 5"),
+    proj_table = html.Div(className='twelve columns',
+                          children=[generate_table(df, 'desc-table'),
+                                    html.P("Table 4"),
                                     dcc.Markdown("*Mean and variance of projection's lengths*"),
                                     # Following text contains math formulas.
                                     # Keep the math sections short, as they do not wrap when resizing.
@@ -820,8 +881,9 @@ def create_content():
                                                          "with $\\vec{x}$ being a 2-dimensional data point "
                                                          "$\\vec{x}=[df1 \\; df2]$ and $\\bar{x}$ "
                                                          "being the mean vector. "
-                                                         "$\\|\\hat{v}_{\parallel UCM}\\|=\\|\\hat{v}_{\\perp UCM}\\|=1$.",)
+                                                     "$\\|\\hat{v}_{\parallel UCM}\\|=\\|\\hat{v}_{\\perp UCM}\\|=1$.",)
                                                ]),
+                                    dcc.Markdown(filter_hint)
                                     ])
     
     # Tie widgets together to layout.
@@ -848,8 +910,8 @@ def create_content():
                            *dash_row(hist_graph_dfs, hist_graph_sum),
                            *dash_row(corr_table),
                            *dash_row(pca_graph, pca_table),
-                           *dash_row(var_graph, var_table),
                            *dash_row(proj_table),
+                           *dash_row(var_graph),
                            ]),
     ])
     return content

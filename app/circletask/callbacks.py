@@ -757,7 +757,7 @@ def register_callbacks(dashapp):
             z = np.ones((101, 101)).astype(int)
         df['outlier'] = outliers.astype(int)
         # Format table columns.
-        columns = layout.get_columns_settings(df)
+        columns = layout.get_columns_settings(df, order=[0, 1, 2, 3, 4, 5, 6, 7, 10, 14, 8, 11, 9, 12, 13, 15])
         
         if not users_selected:
             # Return all the rows on initial load/no user selected.
@@ -850,7 +850,7 @@ def register_callbacks(dashapp):
     @dashapp.callback([Output('onset-dfs', 'figure'),
                        Output('duration-dfs', 'figure')],
                       [Input('trials-table', 'derived_virtual_data')])
-    def set_violinplots(table_data):
+    def set_grab_plots(table_data):
         """ Update histograms when data in trials table changes. """
         df = records_to_df(table_data)
         try:
@@ -860,26 +860,12 @@ def register_callbacks(dashapp):
             raise PreventUpdate
         return fig_onset, fig_duration
 
-    # Variance df1, df2, sum
-    @dashapp.callback([Output('variance-table', 'data'),
-                       Output('variance-table', 'columns')],
-                      [Input('trials-table', 'derived_virtual_data')])
-    def set_variance_table(table_data):
-        """ Update table showing variances of dependent and in independent variables. """
-        df = records_to_df(table_data)
-        try:
-            df[['user', 'block', 'constraint']] = df[['user', 'block', 'constraint']].astype('category')
-        except KeyError:
-            pass
-        variances = analysis.get_descriptive_stats(df)
-        columns = layout.get_columns_settings(variances)
-        return df_to_records(variances), columns
-    
     @dashapp.callback(Output('barplot-variance', 'figure'),
-                      [Input('variance-table', 'derived_virtual_data')])
+                      [Input('desc-table', 'derived_virtual_data')])
     def set_variance_graph(table_data):
         """ Update graph showing variances of dependent and in independent variables. """
         df = records_to_df(table_data)
+        df.dropna(inplace=True)
         return layout.generate_means_figure(df)
 
     # PCA
@@ -938,8 +924,10 @@ def register_callbacks(dashapp):
         ucm_vec = analysis.get_ucm_vec()
         df = records_to_df(table_data, columns=table_columns)
         try:
-            df[['user', 'block', 'constraint']] = df[['user', 'block', 'constraint']].astype('category')
-            df_proj = df[['block', 'df1', 'df2']].groupby('block').apply(analysis.get_projections, ucm_vec)
+            df[['user', 'session', 'block', 'constraint']] = df[['user', 'session', 'block',
+                                                                 'constraint']].astype('category')
+            # We compute the projections based on user & per block!
+            df_proj = df.groupby(['user', 'session', 'block'])[['df1', 'df2']].apply(analysis.get_projections, ucm_vec)
         except KeyError:
             df_proj = pd.DataFrame()
             
@@ -952,31 +940,20 @@ def register_callbacks(dashapp):
         
         return df_to_records(df_proj)
     
-    @dashapp.callback([Output('proj-table', 'data'),
-                       Output('proj-table', 'columns')],
+    @dashapp.callback([Output('desc-table', 'data'),
+                       Output('desc-table', 'columns')],
                       [Input('proj-store', 'data')],
                       [State('trials-table', 'data')])
-    def set_proj_table(projections, table_data):
+    def set_descriptives_table(projections, table_data):
         """  and their descriptive statistics and put
          the result into a table.
          """
-        df_proj = records_to_df(projections)
-        try:
-            df_trials = records_to_df(table_data).iloc[df_proj['idx']]
-            df_trials[['user', 'block', 'constraint']] = df_trials[['user', 'block', 'constraint']].astype('category')
-        except (KeyError, ValueError):
-            df_stats = analysis.get_stats(df_proj)
-        else:
-            df_proj['block'] = df_trials['block']
-            df_proj.drop('idx', axis='columns', inplace=True)
-        
-            # Get statistic characteristics of absolute lengths.
-            df_stats = analysis.get_stats(df_proj, by='block')
-        # Mean is 0, so we don't need to show it.
-        df_stats.drop('mean', axis='columns', level=1, inplace=True)
-
+        df_proj = records_to_df(projections).set_index('idx', drop=True)
+        df_trials = records_to_df(table_data)
+        df = analysis.get_statistics(df_trials, df_proj)
         # For display in a simple table flatten Multiindex columns.
-        df_stats.columns = [" ".join(col).strip() for col in df_stats.columns.to_flat_index()]
+        df.columns = [" ".join(col).strip() for col in df.columns.to_flat_index()]
+        df.reset_index(inplace=True)
         # Get display settings for numeric cells.
-        columns = layout.get_columns_settings(df_stats)
-        return df_to_records(df_stats), columns
+        columns = layout.get_columns_settings(df, order=[0, 1, 2, 3, 4, 6, 8, 5, 7, 9, 10, 12, 11, 13, 15, 16, 14])
+        return df_to_records(df), columns
