@@ -23,6 +23,7 @@ from .exceptions import UploadError, ModelCreationError
 from . import analysis
 from . import dbactions
 from . import layout
+from . import plotting
 
 # Describe time format that we get, e.g. in file names, so we can convert it to datetime.
 time_fmt = '%Y_%m_%d_%H_%M_%S'
@@ -555,12 +556,12 @@ def register_callbacks(dashapp):
         except KeyError:
             pass
         z = np.array(contour)
-        fig = layout.generate_trials_figure(df, contour_data=z)
+        fig = plotting.generate_trials_figure(df, contour_data=z)
         
         # PCA visualisation.
         pca_df = records_to_df(pca_data)
         if 'Show' in show_pca:
-            arrows = layout.get_pca_annotations(pca_df)
+            arrows = plotting.get_pca_annotations(pca_df)
             fig.layout.update(annotations=arrows)
             
         return fig
@@ -572,10 +573,10 @@ def register_callbacks(dashapp):
         """ Update histograms when data in trials table changes. """
         df = records_to_df(table_data)
         try:
-            fig_dfs = layout.generate_histograms(df[['df1', 'df2']])
-            fig_sum = layout.generate_histograms(df[['block', 'sum']], by='block')
+            fig_dfs = plotting.generate_histograms(df[['df1', 'df2']])
+            fig_sum = plotting.generate_histograms(df[['block', 'sum']], by='block')
         except KeyError:
-            fig = layout.generate_histograms(pd.DataFrame())
+            fig = plotting.generate_histograms(pd.DataFrame())
             return fig, fig
         return fig_dfs, fig_sum
 
@@ -606,8 +607,8 @@ def register_callbacks(dashapp):
         """ Update histograms when data in trials table changes. """
         df = records_to_df(table_data)
         try:
-            fig_onset = layout.generate_grab_figure(df, 'grab')
-            fig_duration = layout.generate_grab_figure(df, 'duration')
+            fig_onset = plotting.generate_grab_figure(df, 'grab')
+            fig_duration = plotting.generate_grab_figure(df, 'duration')
         except KeyError:
             raise PreventUpdate
         return fig_onset, fig_duration
@@ -618,7 +619,7 @@ def register_callbacks(dashapp):
         """ Update graph showing variances of dependent and in independent variables. """
         df = records_to_df(table_data)
         df.dropna(inplace=True)
-        return layout.generate_means_figure(df)
+        return plotting.generate_means_figure(df)
 
     # PCA
     @dashapp.callback(Output('pca-store', 'data'),
@@ -648,7 +649,7 @@ def register_callbacks(dashapp):
             df[['block', 'PC']] = df[['block', 'PC']].astype('category')
         except KeyError:
             pass
-        fig = layout.generate_pca_figure(df)
+        fig = plotting.generate_pca_figure(df)
         return fig
 
     @dashapp.callback([Output('pca-table', 'data'),
@@ -722,7 +723,7 @@ def register_callbacks(dashapp):
             pass
         # Convert to long format for easier plotting.
         long_df = analysis.wide_to_long(df, stubs=['df1', 'df2'], suffixes=['mean', 'std'], j='dof')
-        fig = layout.generate_lines_plot(long_df, "mean", by='user', color_col='dof', errors='std')
+        fig = plotting.generate_lines_plot(long_df, "mean", by='user', color_col='dof', errors='std')
         return fig
 
     @dashapp.callback(Output('proj-line-plot', 'figure'),
@@ -731,5 +732,5 @@ def register_callbacks(dashapp):
         """ Update projection line-plot showing variances per block and user. """
         df = records_to_df(data)
         long_df = analysis.wide_to_long(df, ['parallel', 'orthogonal'], suffixes='variance', j='projection')
-        fig = layout.generate_lines_plot(long_df, "variance", by='user', color_col='projection')
+        fig = plotting.generate_lines_plot(long_df, "variance", by='user', color_col='projection')
         return fig
