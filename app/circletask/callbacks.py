@@ -607,8 +607,14 @@ def register_callbacks(dashapp):
         """ Update histograms when data in trials table changes. """
         df = records_to_df(table_data)
         try:
-            fig_onset = plotting.generate_grab_figure(df, 'grab')
-            fig_duration = plotting.generate_grab_figure(df, 'duration')
+            onset_df = df[['block', 'user', 'constraint', 'df1_grab', 'df2_grab']]
+            fig_onset = plotting.generate_violin_figure(onset_df.rename(columns={'df1_grab': 'df1', 'df2_grab': 'df2'}),
+                                                        ['df1', 'df2'], ytitle="Grab Onset (s)")
+            
+            duration_df = df[['block', 'user', 'constraint', 'df1_duration', 'df2_duration']]
+            fig_duration = plotting.generate_violin_figure(duration_df.rename(columns={'df1_duration': 'df1',
+                                                                                       'df2_duration': 'df2'}),
+                                                           ['df1', 'df2'], ytitle='Grab Duration (s)')
         except KeyError:
             raise PreventUpdate
         return fig_onset, fig_duration
@@ -734,3 +740,36 @@ def register_callbacks(dashapp):
         long_df = analysis.wide_to_long(df, ['parallel', 'orthogonal'], suffixes='variance', j='projection')
         fig = plotting.generate_lines_plot(long_df, "variance", by='user', color_col='projection')
         return fig
+
+    @dashapp.callback(Output('df-violin-plot', 'figure'),
+                      [Input('desc-table', 'derived_virtual_data')],
+                      [State('desc-table', 'columns')])
+    def set_df_violin_plot(data, header):
+        """ Update violin-plot for showing means of degrees of freedom per block. """
+        df = records_to_df(data)
+        try:
+            df[['user', 'block', 'constraint']] = df[['user', 'block', 'constraint']].astype('category')
+        except KeyError:
+            col_names = [c['id'] for c in header]
+            df = pd.DataFrame(columns=col_names)
+        df.rename(columns={'df1 mean': 'df1', 'df2 mean': 'df2'}, inplace=True)
+        fig = plotting.generate_violin_figure(df, columns=['df1', 'df2'], ytitle='Mean')
+        return fig
+
+    @dashapp.callback(Output('proj-violin-plot', 'figure'),
+                      [Input('desc-table', 'derived_virtual_data')],
+                      [State('desc-table', 'columns')])
+    def set_proj_violin_plot(data, header):
+        """ Update projection violin-plot showing variances per block. """
+        df = records_to_df(data)
+        try:
+            df[['user', 'block', 'constraint']] = df[['user', 'block', 'constraint']].astype('category')
+        except KeyError:
+            col_names = [c['id'] for c in header]
+            df = pd.DataFrame(columns=col_names)
+        # Rename columns for coloring.
+        df.rename(columns={'parallel variance': 'parallel', 'orthogonal variance': 'orthogonal'}, inplace=True)
+        fig = plotting.generate_violin_figure(df, columns=['parallel', 'orthogonal'],
+                                              ytitle='Variance')
+        return fig
+

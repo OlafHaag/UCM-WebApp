@@ -14,7 +14,7 @@ theme = {'graph_margins': {'l': 40, 'b': 40, 't': 40, 'r': 10},
          'df1': 'cornflowerblue',
          'df2': 'palevioletred',
          'sum': 'peru',
-         'parallel': 'lawngreen',
+         'parallel': 'lightgreen',
          'orthogonal': 'salmon',
          'colors': px.colors.qualitative.Plotly,
          }
@@ -141,61 +141,6 @@ def get_pca_annotations(pca_dataframe):
     except KeyError:
         pass
     return arrows
-
-
-def generate_grab_figure(dataframe, feature='duration'):
-    """ Plot duration, onset or release of slider grabs.
-    
-    :param dataframe: Trial data.
-    :type dataframe: pandas.DataFrame
-    :param feature: Which variable of df1 and df2 is to be plotted. One of 'duration', 'grab', 'release'
-    :type feature: str
-    
-    :return: Figure object of graph.
-    :rtype: plotly.graph_objs.Figure
-    """
-    legend = go.layout.Legend(
-        xanchor='right',
-        yanchor='top',
-        orientation='v',
-    )
-    
-    fig = go.Figure()
-    fig.layout.update(xaxis_title='Block',
-                      yaxis_title=f"Grab {'Onset' if feature=='grab' else feature.capitalize()} (s)",
-                      legend=legend,
-                      margin=theme['graph_margins'])
-    if dataframe.empty:
-        return fig
-    
-    grouped = dataframe.groupby('block')
-    for name, group_df in grouped:
-        fig.add_trace(go.Violin(x=group_df['block'],
-                                y=group_df[f'df1_{feature}'],
-                                legendgroup='df1', scalegroup='df1', name='df1',
-                                side='negative',
-                                line_color=theme['df1'],
-                                showlegend=bool(name == dataframe['block'].unique()[0]),
-                                )
-                      )
-        fig.add_trace(go.Violin(x=group_df['block'],
-                                y=group_df[f'df2_{feature}'],
-                                legendgroup='df2', scalegroup='df2', name='df2',
-                                side='positive',
-                                line_color=theme['df2'],
-                                showlegend=bool(name == dataframe['block'].unique()[0]),
-                                )
-                      )
-
-    # update characteristics shared by all traces
-    fig.update_traces(meanline_visible=True,
-                      box_visible=True,
-                      scalemode='count')  # scale violin plot area with total count
-    block_range = [dataframe['block'].min() - 0.5, dataframe['block'].max() + 0.5]
-    fig.update_layout(violingap=0, violingroupgap=0, violinmode='overlay')
-    fig.update_xaxes(tickvals=dataframe['block'].unique(), range=block_range)
-    fig.update_yaxes(zeroline=True, zerolinewidth=2, zerolinecolor='LightPink')
-    return fig
 
 
 def generate_histograms(dataframe, by=None):
@@ -410,17 +355,26 @@ def generate_violin_figure(dataframe, columns, ytitle):
                                     y=group_df[col],
                                     legendgroup=col, scalegroup=col, name=col,
                                     side=sides[i],
+                                    pointpos=i - 0.5,
                                     line_color=theme[col],
+                                    text=[f"{col}<br />participant: {j['user']}<br />"
+                                          f"block: {j['block']}<br />constraint: {j['constraint']}"
+                                          for _, j in group_df.iterrows()],
+                                    hoverinfo='y+text',
+                                    spanmode='hard',
                                     showlegend=bool(name == dataframe['block'].unique()[0]),  # Only 1 legend.
                                     )
                           )
     
     # update characteristics shared by all traces
-    fig.update_traces(meanline_visible=True,
-                      box_visible=True,
+    fig.update_traces(meanline={'visible': True, 'color': 'dimgray'},
+                      box={'visible': True, 'width': 0.5, 'line_color': 'dimgray'},
+                      points='all',  # show all points
+                      jitter=0.1,  # add some jitter on points for better visibility
                       scalemode='count')  # scale violin plot area with total count
-    block_range = [dataframe['block'].cat.categories.min() - 0.5, dataframe['block'].cat.categories.max() + 0.5]
-    fig.update_layout(violingap=0, violingroupgap=0, violinmode='overlay')
+        
+    block_range = [dataframe['block'].astype(float).min() - 0.5, dataframe['block'].astype(float).max() + 0.5]
+    fig.update_layout(violingap=0, violingroupgap=0, violinmode='overlay', hovermode='closest')
     fig.update_xaxes(tickvals=dataframe['block'].unique(), range=block_range)
     fig.update_yaxes(zeroline=True, zerolinewidth=2, zerolinecolor='LightPink')
     return fig
@@ -450,13 +404,13 @@ def generate_lines_plot(dataframe, y_var, errors=None, by='user', color_col=None
     
     hover_data = ['block', 'constraint', y_var, errors, by] if errors else ['block', 'constraint', y_var, by]
     try:
-        block_range = [dataframe['block'].cat.categories.min() - 0.5, dataframe['block'].cat.categories.max() + 0.5]
+        block_range = [dataframe['block'].astype(float).min() - 0.5, dataframe['block'].astype(float).max() + 0.5]
         fig = px.line(data_frame=dataframe, x='block', y=y_var, line_group=by, error_y=errors,
                       color=color_col, color_discrete_map=theme,
                       hover_data=hover_data, range_x=block_range,
                       render_mode='webgl')
         fig.update_xaxes(tickvals=dataframe['block'].unique())
-    except KeyError:
+    except (KeyError, ValueError):
         fig = go.Figure()
     fig.layout.update(xaxis_title='Block',
                       yaxis_title=y_var.capitalize(),

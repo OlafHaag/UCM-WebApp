@@ -434,8 +434,15 @@ def create_content():
                                                                      "and participant. Vertical bars represent "
                                                                      "standard deviations.")
 
+    dof_violin_plot = get_figure_div(dcc.Graph(id='df-violin-plot'), 12, "Mean final state values per degree of "
+                                                                         "freedom and block across participants.")
+    
     proj_line_plot = get_figure_div(dcc.Graph(id='proj-line-plot'), 11, "Projection variance per direction to UCM for "
                                                                         "each participant.")
+
+    proj_violin_plot = get_figure_div(dcc.Graph(id='proj-violin-plot'), 13, "Variance of projections onto subspace "
+                                                                            "parallel and orthogonal to UCM across "
+                                                                            "participants.")
     
     corr_table = get_table_div(generate_simple_table(df, 'corr-table'), 2,
                                "Pairwise Pearson correlation coefficients",
@@ -506,6 +513,7 @@ def create_content():
                            *dash_row(pca_graph, pca_table),
                            *dash_row(desc_table),
                            *dash_row(dof_line_plot, proj_line_plot),
+                           *dash_row(dof_violin_plot, proj_violin_plot),
                            *dash_row(var_graph),
                            ]),
     ])
