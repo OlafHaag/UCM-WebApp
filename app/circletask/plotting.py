@@ -7,7 +7,7 @@ import numpy as np
 from plotly import express as px, graph_objs as go, figure_factory as ff
 from plotly.subplots import make_subplots
 
-import analysis
+from . import analysis
 
 theme = {'graph_margins': {'l': 40, 'b': 40, 't': 40, 'r': 10},
          # Use colors consistently to quickly grasp what is what.
