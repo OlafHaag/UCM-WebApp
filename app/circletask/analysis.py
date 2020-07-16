@@ -401,3 +401,34 @@ def get_statistics(df_trials, df_proj):
     # Re-introduce constraint column.
     df.insert(0, constraints.name, constraints)
     return df
+
+
+def wide_to_long(df, stubs, suffixes, j):
+    """ Transforms a dataframe to long format, where the stubs are melted into a single column with name j and suffixes
+    into value columns. Filters for all columns that are a stubs+suffixes combination.
+    Keeps 'block', 'user', and 'constraint' as id_vars. When an error is encountered an emtpy dataframe is returned.
+    
+    :type df: pandas.DataFrame
+    :type stubs: list[str]
+    :type suffixes: str|list[str]
+    :type j: str
+    
+    :return: Filtered Dataframe in long format.
+    :rtype: pandas.Dataframe
+    """
+    if isinstance(suffixes, str):
+        suffixes = [suffixes]
+    # We want all stubs+suffix combinations as columns.
+    val_cols = [" ".join(x) for x in itertools.product(stubs, suffixes)]
+    try:
+        # Filter for data we want to plot.
+        df = df[['user', 'block', 'constraint', *val_cols]]
+        # Reverse stub and suffix for long format. We want the measurements as columns, not the categories.
+        df.columns = [" ".join(x.split(" ")[::-1]) for x in df.columns]
+        long_df = pd.wide_to_long(df=df, stubnames=suffixes, i=['user', 'block', 'constraint'], j=j, sep=" ",
+                                  suffix=f'(!?{"|".join(stubs)})')
+        long_df.reset_index(inplace=True)
+    except (KeyError, ValueError):
+        long_df = pd.DataFrame(columns=['block', 'user', 'constraint', j, *suffixes])
+    long_df[['block', 'user']] = long_df[['block', 'user']].astype('category')
+    return long_df

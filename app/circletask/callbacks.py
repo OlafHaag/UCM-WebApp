@@ -957,3 +957,27 @@ def register_callbacks(dashapp):
         # Get display settings for numeric cells.
         columns = layout.get_columns_settings(df, order=[0, 1, 2, 3, 4, 6, 8, 5, 7, 9, 10, 12, 11, 13, 15, 16, 14])
         return df_to_records(df), columns
+
+    @dashapp.callback(Output('df-line-plot', 'figure'),
+                      [Input('desc-table', 'derived_virtual_data')])
+    def set_df_mean_plot(data):
+        """ Update degree of freedom line-plot showing mean values per block and user. """
+        df = records_to_df(data)
+        try:
+            # For error bars we need standard deviation.
+            df[['df1 std', 'df2 std']] = df[['df1 variance', 'df2 variance']].apply(np.sqrt)
+        except KeyError:
+            pass
+        # Convert to long format for easier plotting.
+        long_df = analysis.wide_to_long(df, stubs=['df1', 'df2'], suffixes=['mean', 'std'], j='dof')
+        fig = layout.generate_lines_plot(long_df, "mean", by='user', color_col='dof', errors='std')
+        return fig
+
+    @dashapp.callback(Output('proj-line-plot', 'figure'),
+                      [Input('desc-table', 'derived_virtual_data')])
+    def set_proj_var_plot(data):
+        """ Update projection line-plot showing variances per block and user. """
+        df = records_to_df(data)
+        long_df = analysis.wide_to_long(df, ['parallel', 'orthogonal'], suffixes='variance', j='projection')
+        fig = layout.generate_lines_plot(long_df, "variance", by='user', color_col='projection')
+        return fig

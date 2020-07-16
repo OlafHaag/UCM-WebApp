@@ -332,8 +332,9 @@ def generate_grab_figure(dataframe, feature='duration'):
     fig.update_traces(meanline_visible=True,
                       box_visible=True,
                       scalemode='count')  # scale violin plot area with total count
+    block_range = [dataframe['block'].min() - 0.5, dataframe['block'].max() + 0.5]
     fig.update_layout(violingap=0, violingroupgap=0, violinmode='overlay')
-    fig.update_xaxes(tickvals=dataframe['block'].unique())
+    fig.update_xaxes(tickvals=dataframe['block'].unique(), range=block_range)
     fig.update_yaxes(zeroline=True, zerolinewidth=2, zerolinecolor='LightPink')
     return fig
 
@@ -384,7 +385,7 @@ def generate_histograms(dataframe, by=None):
             
     fig.layout.update(legend=legend,
                       yaxis={'title': 'Probability Density'},
-                      xaxis={'title': 'Endpoint Value'},
+                      xaxis={'title': 'Final State Value'},
                       margin=theme['graph_margins'],
                       )
     return fig
@@ -559,9 +560,49 @@ def generate_violin_figure(dataframe, columns, ytitle):
     fig.update_traces(meanline_visible=True,
                       box_visible=True,
                       scalemode='count')  # scale violin plot area with total count
+    block_range = [dataframe['block'].cat.categories.min() - 0.5, dataframe['block'].cat.categories.max() + 0.5]
     fig.update_layout(violingap=0, violingroupgap=0, violinmode='overlay')
-    fig.update_xaxes(tickvals=dataframe['block'].unique())
+    fig.update_xaxes(tickvals=dataframe['block'].unique(), range=block_range)
     fig.update_yaxes(zeroline=True, zerolinewidth=2, zerolinecolor='LightPink')
+    return fig
+
+
+def generate_lines_plot(dataframe, y_var, errors=None, by='user', color_col=None):
+    """ Intended for use with either df1/df2 or parallel/orthogonal.
+    
+    :param dataframe: Values to plot
+    :type dataframe: pandas.DataFrame
+    :param y_var: Y-axis variable. What is being plotted?
+    :type y_var: str
+    :param errors: column name for standard deviations.
+    :type errors: str|None
+    :param by: Line group. What any column in dataframe will be grouped by.
+    :type by: str
+    :param color_col: Column containing keys for colors from theme.
+
+    :return: Figure object of graph.
+    :rtype: plotly.graph_objs.Figure
+    """
+    legend = go.layout.Legend(
+        xanchor='right',
+        yanchor='top',
+        orientation='v',
+    )
+    
+    hover_data = ['block', 'constraint', y_var, errors, by] if errors else ['block', 'constraint', y_var, by]
+    try:
+        block_range = [dataframe['block'].cat.categories.min() - 0.5, dataframe['block'].cat.categories.max() + 0.5]
+        fig = px.line(data_frame=dataframe, x='block', y=y_var, line_group=by, error_y=errors,
+                      color=color_col, color_discrete_map=theme,
+                      hover_data=hover_data, range_x=block_range,
+                      render_mode='webgl')
+        fig.update_xaxes(tickvals=dataframe['block'].unique())
+    except KeyError:
+        fig = go.Figure()
+    fig.layout.update(xaxis_title='Block',
+                      yaxis_title=y_var.capitalize(),
+                      legend=legend,
+                      margin=theme['graph_margins'])
     return fig
 
 
@@ -846,6 +887,13 @@ def create_content():
     hist_graph_sum = get_figure_div(dcc.Graph(id='histogram-sum'), 7, "Histogram of the sum of df1 and df2 "
                                                                       "compared to a normal distribution.")
     
+    dof_line_plot = get_figure_div(dcc.Graph(id='df-line-plot'), 10, "Mean final state values per degree of freedom "
+                                                                     "and participant. Vertical bars represent "
+                                                                     "standard deviations.")
+
+    proj_line_plot = get_figure_div(dcc.Graph(id='proj-line-plot'), 11, "Projection variance per direction to UCM for "
+                                                                        "each participant.")
+    
     corr_table = get_table_div(generate_simple_table(df, 'corr-table'), 2,
                                "Pairwise Pearson correlation coefficients",
                                "There is a reciprocal suppression when: "
@@ -866,22 +914,25 @@ def create_content():
                                "Mean of the sum of df1 and df2.")
     var_graph.style = {'marginTop': '70px'}  # Match it to the table y position.
     
-    # Table of projections' length mean and variance.
+    # Table of descriptive statistics and synergy indices.
     # ToDo: When LaTeX rendering is supported in dash Markdown, convert.
-    proj_table = html.Div(className='twelve columns',
+    desc_table = html.Div(className='twelve columns',
                           children=[generate_table(df, 'desc-table'),
                                     html.P("Table 4"),
-                                    dcc.Markdown("*Mean and variance of projection's lengths*"),
+                                    html.P("Descriptive statistics, synergy index ($\\Delta V$) and Fisher "
+                                             "z-transformed synergy index ($\\Delta V_{z}$)",
+                                           style={'font-style': 'italic'}),
                                     # Following text contains math formulas.
-                                    # Keep the math sections short, as they do not wrap when resizing.
                                     html.Span([html.I("Note: "),
-                                               html.Span("The lengths are the absolute values of coefficients "
-                                                         "$a$ and $b$ in $\\vec{x}-\\bar{x} = "
-                                                         "a\\hat{v}_{\parallel UCM} + b\\hat{v}_{\\perp UCM}$ "
+                                               html.Span("The absolute averages are formed by the lengths of the "
+                                                         "projections. Projections are the coefficients $a$ and $b$ in "
+                                                         "$\\vec{x}-\\bar{x} = a\\hat{v}_{\parallel UCM} + "
+                                                         "b\\hat{v}_{\\perp UCM}$ "
                                                          "with $\\vec{x}$ being a 2-dimensional data point "
                                                          "$\\vec{x}=[df1 \\; df2]$ and $\\bar{x}$ "
-                                                         "being the mean vector. "
-                                                     "$\\|\\hat{v}_{\parallel UCM}\\|=\\|\\hat{v}_{\\perp UCM}\\|=1$.",)
+                                                         "being the mean vector. $\\hat{v}_{\parallel UCM}$ and "
+                                                         "$\\hat{v}_{\perp UCM}$ are unit base vectors ("
+                                                    "$\\|\\hat{v}_{\parallel UCM}\\|=\\|\\hat{v}_{\\perp UCM}\\|=1$).",)
                                                ]),
                                     dcc.Markdown(filter_hint)
                                     ])
@@ -910,7 +961,8 @@ def create_content():
                            *dash_row(hist_graph_dfs, hist_graph_sum),
                            *dash_row(corr_table),
                            *dash_row(pca_graph, pca_table),
-                           *dash_row(proj_table),
+                           *dash_row(desc_table),
+                           *dash_row(dof_line_plot, proj_line_plot),
                            *dash_row(var_graph),
                            ]),
     ])
