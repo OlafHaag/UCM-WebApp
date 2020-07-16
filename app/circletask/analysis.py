@@ -1,47 +1,9 @@
-from datetime import datetime, timedelta
 import itertools
 
 import pandas as pd
 import numpy as np
 from sklearn.decomposition import PCA
 from sklearn.covariance import EllipticEnvelope
-from sqlalchemy import and_
-
-from app.extensions import db
-from app.models import CircleTaskBlock, CircleTaskTrial
-
-
-def get_data(start_date=None, end_date=None):
-    """ Queries database for data an merges to a Dataframe. """
-    # Get data in time period.
-    if not start_date and not end_date:
-        blocks_df = pd.read_sql_table('circletask_blocks', db.engine, index_col='id')
-    elif start_date and not end_date:
-        query_stmt = db.session.query(CircleTaskBlock).filter(CircleTaskBlock.time_iso >= start_date).statement
-        blocks_df = pd.read_sql_query(query_stmt, db.engine, index_col='id')
-    else:
-        # end_date's daytime is set to the start of the day (00:00:00), but we want the end of the day.
-        end_date = datetime.fromisoformat(end_date) + timedelta(days=1)
-        query_stmt = db.session.query(CircleTaskBlock).filter(and_(CircleTaskBlock.time_iso >= start_date,
-                                                                   CircleTaskBlock.time_iso < end_date)).statement
-        blocks_df = pd.read_sql_query(query_stmt, db.engine, index_col='id')
-    
-    users_df = pd.read_sql_table('users', db.engine)
-    # Use users' index instead of id for obfuscation and shorter display.
-    users_inv_map = pd.Series(users_df.index, index=users_df.id)
-    # Read only trials from blocks we loaded.
-    query_stmt = db.session.query(CircleTaskTrial).filter(CircleTaskTrial.block_id.in_(blocks_df.index)).statement
-    trials_df = pd.read_sql_query(query_stmt, db.engine, index_col='id')
-    # Now insert some data from other tables.
-    trials_df.insert(0, 'user', trials_df.user_id.map(users_inv_map))
-    trials_df.insert(1, 'session', trials_df['block_id'].map(blocks_df['nth_session']))
-    trials_df.insert(2, 'block', trials_df['block_id'].map(blocks_df['nth_block']))
-    trials_df.insert(3, 'constraint', trials_df['block_id'].map(blocks_df['treatment']))
-    trials_df[['user', 'session', 'block', 'constraint']] = trials_df[['user', 'session',
-                                                                       'block', 'constraint']].astype('category')
-    # Exclude columns.
-    trials_df.drop(columns=['user_id', 'block_id'], inplace=True)
-    return trials_df
 
 
 def get_valid_trials(dataframe):

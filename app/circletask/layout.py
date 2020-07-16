@@ -1,4 +1,7 @@
-""" This module contains all the dash components visible to the user and composes them to a layout. """
+"""
+This module contains all the dash components visible to the user and composes them to a layout.
+"""
+
 from datetime import datetime
 from pathlib import Path
 import string
