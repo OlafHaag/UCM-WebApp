@@ -64,9 +64,10 @@ def get_pca_data(dataframe):
         pca.fit(x)
     except ValueError:
         # Return empty.
-        df = pd.DataFrame(columns=['var_expl', 'x', 'y', 'meanx', 'meany'])
+        df = pd.DataFrame(columns=['var_expl', 'var_expl_ratio', 'x', 'y', 'meanx', 'meany'])
     else:
-        df = pd.DataFrame({'var_expl': pca.explained_variance_ratio_.T * 100,  # In percent
+        df = pd.DataFrame({'var_expl': pca.explained_variance_.T,
+                           'var_expl_ratio': pca.explained_variance_ratio_.T * 100,  # In percent
                            'x': pca.components_[:, 0],
                            'y': pca.components_[:, 1],
                            'meanx': pca.mean_[0],

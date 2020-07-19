@@ -644,7 +644,8 @@ def register_callbacks(dashapp):
             pca_df.reset_index(inplace=True)
     
         if pca_df.empty:
-            pca_df = pd.DataFrame(None, columns=['block', 'PC', 'var_expl', 'x', 'y', 'meanx', 'meany'])
+            pca_df = pd.DataFrame(None, columns=['block', 'PC', 'var_expl', 'var_expl_ratio',
+                                                 'x', 'y', 'meanx', 'meany'])
         return df_to_records(pca_df)
 
     @dashapp.callback(Output('barplot-pca', 'figure'),

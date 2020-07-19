@@ -274,7 +274,7 @@ def generate_pca_figure(dataframe):
     )
     
     try:
-        fig = px.bar(dataframe, x='block', y='var_expl', barmode='group', color='PC')
+        fig = px.bar(dataframe, x='block', y='var_expl_ratio', barmode='group', color='PC')
         fig.update_xaxes(tickvals=dataframe['block'].unique())
     except (KeyError, ValueError):
         fig = go.Figure()
