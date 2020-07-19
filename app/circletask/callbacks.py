@@ -561,6 +561,7 @@ def register_callbacks(dashapp):
         # PCA visualisation.
         pca_df = records_to_df(pca_data)
         if 'Show' in show_pca:
+            plotting.add_pca_ellipses(fig, pca_df)
             arrows = plotting.get_pca_annotations(pca_df)
             fig.layout.update(annotations=arrows)
             

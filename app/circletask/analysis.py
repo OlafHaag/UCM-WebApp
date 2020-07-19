@@ -79,7 +79,7 @@ def get_pca_data(dataframe):
 
 
 def get_pca_vectors(dataframe):
-    """ Get principal components for as vectors. Vectors can then be used to annotate graphs.
+    """ Get principal components as vectors. Vectors can then be used to annotate graphs.
     
     :param dataframe: Tabular PCA data.
     :type dataframe: pandas.DataFrame
@@ -257,7 +257,7 @@ def get_synergy_indices(variances, n=2, d=1):
 def get_synergy_idx_bounds(n=2, d=1):
     """ Get lower and upper bounds of the synergy index.
     
-     dV = n*(Vucm - Vort)/((n-d)*Vucm + d*Vort)
+     dV = n * (Vucm/(n - d) - Vort/d) / (Vucm + Vort)
      
      If all variance lies within the UCM, then Vort=0 and it follows for the upper bound: dV = n/(n-d)
      

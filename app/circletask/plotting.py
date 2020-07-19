@@ -20,6 +20,35 @@ theme = {'graph_margins': {'l': 40, 'b': 40, 't': 40, 'r': 10},
          }
 
 
+def get_ellipse_coordinates(x_center=0, y_center=0, axis=(1, 0), a=1, b=1, n=100):
+    """ Helper function to generate coordinates for drawing an ellipse.
+    
+    :param x_center: X coordinates of ellipse center.
+    :param y_center: Y coordinates of ellipse center.
+    :param axis: Ellipse main axis direction.
+    :param a: Ellipse parameter for axis.
+    :param b: Ellipse parameter for orthogonal axis.
+    :param n: Resolution.
+    :return: X and y path coordinates for ellipse. Plot with scatter and mode set to lines.
+    """
+    # We work with unit vectors.
+    if not np.isclose(np.linalg.norm(axis), 1):
+        axis = np.array(axis)/np.linalg.norm(axis)
+    axis2 = analysis.get_orthogonal_vec2d(axis)
+    t = np.linspace(0, 2 * np.pi, n)
+    # Ellipse parameterization with respect to a system of axes of directions defined by axis.
+    xs = a * np.cos(t)
+    ys = b * np.sin(t)
+    # Construct rotation matrix.
+    rot_mat = np.array([axis, axis2]).T
+    # Coordinates of the points with respect to the cartesian system with basis vectors [1, 0], [0,1].
+    xp, yp = np.dot(rot_mat, [xs, ys])
+    # Move to center coordinates.
+    x = xp + x_center
+    y = yp + y_center
+    return x, y
+
+
 def generate_trials_figure(df, contour_data=None):
     """ Scatter plot of data.
     
@@ -141,6 +170,32 @@ def get_pca_annotations(pca_dataframe):
     except KeyError:
         pass
     return arrows
+
+
+def add_pca_ellipses(fig, pca_dataframe):
+    """ Get data for drawing ellipses around data for each block.
+    Ellipses are only scaled by explained variance, not by spread of the actual data.
+    
+    :param fig: Figure to add ellipses to.
+    :param pca_dataframe: Tabular results of PCA.
+    """
+    # Each block displays its principal components.
+    try:
+        for name, group in pca_dataframe.groupby('block'):
+            x, y = get_ellipse_coordinates(*group[['meanx', 'meany']].iloc[0],
+                                           axis=group[['x', 'y']].iloc[0],
+                                           a=np.sqrt(group['var_expl'].iloc[0])*2,
+                                           b=np.sqrt(group['var_expl'].iloc[1])*2,
+                                           )
+            fig.add_scatter(x=x,
+                            y=y,
+                            mode='lines',
+                            line_color=theme['colors'][name],
+                            showlegend=False,
+                            hoverinfo='skip',
+                            )
+    except (KeyError, IndexError):
+        pass
 
 
 def generate_histograms(dataframe, by=None):
