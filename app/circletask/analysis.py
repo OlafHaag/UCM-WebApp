@@ -203,6 +203,10 @@ def get_projections(points, vec_ucm):
     # Centralize the data. Analogous to calculating across trials deviation from average for each time step.
     diffs = points - points.mean()
     # For computational efficiency we shortcut the projection calculation with matrix multiplication.
+    # The actual math behind it:
+    #   coeffs = vec_ucm.T@diff/np.sqrt(vec_ucm.T@vec_ucm), vec_ortho.T@diff/np.sqrt(vec_ortho.T@vec_ortho)
+    # Biased variance (normalized by (n-1)) of projection onto UCM vector:
+    #   var_ucm = vec_ucm.T@np.cov(diffs, bias=True, rowvar=False)@vec_ucm/(vec_ucm.T@vec_ucm)  # Rayleigh fraction.
     coeffs = diffs@A
     coeffs.columns = ['parallel', 'orthogonal']
     return coeffs
@@ -214,21 +218,23 @@ def get_synergy_indices(variances, n=2, d=1):
     
     d: Dimensionality of performance variable. In our case a scalar (1).
     
-    Vucm = 1/N * 1/(n-d) * sum(ProjUCM**2)
+    Vucm = 1/N * 1/(n - d) * sum(ProjUCM**2)
     
     Vort = 1/N * 1/(d) * sum(ProjORT**2)
     
-    Vtotal = 1/n * (d*Vort + (n-d)*Vucm)
+    Vtotal = 1/n * (d * Vort + (n-d) * Vucm)  # Anull the weights on Vucm and Vort for the sum.
     
-    dV = (Vucm - Vort)/Vtotal
+    dV = (Vucm - Vort) / Vtotal
+    dV = n*(Vucm - Vort) / ((n - d)*Vucm + d*Vort)
     
-    dV = n*(Vucm - Vort)/((n-d)*Vucm + d*Vort)
+    Zhang (2008) without weighting Vucm, Vort and Vtotal first:
+    dV = n * (Vucm/(n - d) - Vort/d) / (Vucm + Vort)
     
-    dVz = 0.5*ln((n/d + dV)/(n/((n-d)-dV))
-    dVz = 0.5*ln((2+dV)/(2-dV))
+    dVz = 0.5*ln((n / d + dV) / (n / ((n - d) - dV))
+    dVz = 0.5*ln((2 + dV) / (2 - dV))
     Reference: https://www.frontiersin.org/articles/10.3389/fnagi.2019.00032/full#supplementary-material
     
-    :param variances: Variances of parallel and orthogonal projections to the UCM.
+    :param variances: Unweighted variances of parallel and orthogonal projections to the UCM.
     :type variances: pandas.DataFrame
     :param n: Number of degrees of freedom. Defaults to 2.
     :type: int
@@ -238,8 +244,8 @@ def get_synergy_indices(variances, n=2, d=1):
     :rtype: pandas.DataFrame
     """
     try:
-        dV = (n * (variances['parallel'] - variances['orthogonal'])) \
-            / ((n-d) * variances[['parallel', 'orthogonal']].sum(axis='columns'))
+        dV = n * (variances['parallel']/(n-d) - variances['orthogonal']/d) \
+             / variances[['parallel', 'orthogonal']].sum(axis='columns')
     except KeyError:
         synergy_indices = pd.DataFrame(columns=["$\\Delta V$", "$\\Delta V_{z} $"])
     else:
@@ -249,7 +255,7 @@ def get_synergy_indices(variances, n=2, d=1):
 
 
 def get_synergy_idx_bounds(n=2, d=1):
-    """ Get upper and lower bounds of the synergy index.
+    """ Get lower and upper bounds of the synergy index.
     
      dV = n*(Vucm - Vort)/((n-d)*Vucm + d*Vort)
      
@@ -261,12 +267,12 @@ def get_synergy_idx_bounds(n=2, d=1):
     :type: int
     :param d: Dimensionality of performance variable.
     :type d: int
-    :returns: Upper and lower bounds of synergy index.
+    :returns: Lower and upper bounds of synergy index.
     :rtype: tuple
     """
-    dV_upper = n/(n-d)
     dV_lower = -n/d
-    return dV_upper, dV_lower
+    dV_upper = n/(n-d)
+    return dV_lower, dV_upper
     
     
 def get_mean(dataframe, column, by=None):
@@ -300,7 +306,8 @@ def get_descriptive_stats(data, by=None):
     """
     # There's a bug in pandas 1.0.4 where you can't use custom numpy functions in agg anymore (ValueError).
     # Note that the variance of projections is usually divided by (n-d) for Vucm and d for Vort. Both are 1 in our case.
-    f_var = lambda series: series.var(ddof=0)  # pandas default var returns population variance (n-1).
+    # Pandas default var returns unbiased population variance /(n-1). Doesn't make a difference for synergy indices.
+    f_var = lambda series: series.var(ddof=0)
     f_var.__name__ = 'variance'  # Column name gets function name.
     f_avg = lambda series: series.abs().mean()
     f_avg.__name__ = 'absolute average'
@@ -335,8 +342,9 @@ def get_statistics(df_trials, df_proj):
         df_trials = df_trials.iloc[df_proj.index]
         df_trials[groupers] = df_trials[groupers].astype('category')
     except (KeyError, ValueError):
-        df_proj_stats = get_descriptive_stats(df_proj)
+        df_proj_stats = get_descriptive_stats(pd.DataFrame(columns=df_proj.columns))
         df_dof_stats = get_descriptive_stats(pd.DataFrame(columns=df_trials.columns))
+        cov = pd.DataFrame(columns=[('df1,df2 covariance', '')])
         constraints = pd.Series(name='constraint')
     else:
         df_proj[groupers] = df_trials[groupers]
@@ -347,6 +355,12 @@ def get_statistics(df_trials, df_proj):
         df_dof_stats = get_descriptive_stats(df_trials[groupers + ['df1', 'df2', 'sum']], by=groupers)
         # For degrees of freedom absolute average is the same as the mean, since there are no negative values.
         df_dof_stats.drop('absolute average', axis='columns', level=1, inplace=True)
+        # Get covariance between degrees of freedom.
+        cov = df_trials.groupby(groupers).apply(lambda x: np.cov(x[['df1', 'df2']].T, ddof=0)[0, 1])
+        try:
+            cov = cov.to_frame(('df1,df2 covariance', ''))  # MultiIndex.
+        except AttributeError:  # In case cov is an empty Dataframe.
+            cov = pd.DataFrame(columns=pd.MultiIndex.from_tuples([('df1,df2 covariance', '')]))
         # We lost the constraint column along the way, reconstruct it with same index as descriptive statistics.
         constraints = df_trials.groupby(groupers)['constraint'].unique().dropna().apply(",".join)
 
@@ -359,7 +373,7 @@ def get_statistics(df_trials, df_proj):
     # Before we merge dataframes, give this one a Multiindex, too.
     df_synergies.columns = pd.MultiIndex.from_product([df_synergies.columns, ['']])
     # Join the 3 statistics to be displayed in a single table.
-    df = pd.concat((df_dof_stats, df_proj_stats, df_synergies), axis='columns')
+    df = pd.concat((df_dof_stats, cov, df_proj_stats, df_synergies), axis='columns')
     # Re-introduce constraint column.
     df.insert(0, constraints.name, constraints)
     return df

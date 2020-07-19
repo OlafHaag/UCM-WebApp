@@ -369,9 +369,9 @@ def generate_violin_figure(dataframe, columns, ytitle):
     # update characteristics shared by all traces
     fig.update_traces(meanline={'visible': True, 'color': 'dimgray'},
                       box={'visible': True, 'width': 0.5, 'line_color': 'dimgray'},
-                      points='all',  # show all points
-                      jitter=0.1,  # add some jitter on points for better visibility
-                      scalemode='count')  # scale violin plot area with total count
+                      points='all',  # Show all points.
+                      jitter=0.1,  # Add some jitter on points for better visibility.
+                      scalemode='count')  # Scale violin plot area with total count.
         
     block_range = [dataframe['block'].astype(float).min() - 0.5, dataframe['block'].astype(float).max() + 0.5]
     fig.update_layout(violingap=0, violingroupgap=0, violinmode='overlay', hovermode='closest')

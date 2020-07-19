@@ -714,7 +714,7 @@ def register_callbacks(dashapp):
         df.columns = [" ".join(col).strip() for col in df.columns.to_flat_index()]
         df.reset_index(inplace=True)
         # Get display settings for numeric cells.
-        columns = layout.get_columns_settings(df, order=[0, 1, 2, 3, 4, 6, 8, 5, 7, 9, 10, 12, 11, 13, 15, 16, 14])
+        columns = layout.get_columns_settings(df, order=[0, 1, 2, 3, 4, 6, 8, 5, 7, 10, 9, 11, 13, 12, 14, 16, 17, 15])
         return df_to_records(df), columns
 
     @dashapp.callback(Output('df-line-plot', 'figure'),
