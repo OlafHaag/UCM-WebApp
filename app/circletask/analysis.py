@@ -6,6 +6,37 @@ from sklearn.decomposition import PCA
 from sklearn.covariance import EllipticEnvelope
 
 
+def join_data(users, blocks, trials):
+    """ Take data from different database tables and join them to a single DataFrame. Some variables are renamed and
+    recoded in the process, some are dropped.
+    
+    :param users: Data from users table
+    :type users: pandas.DataFrame
+    :param blocks: Data from circletask_blocks table.
+    :type blocks: pandas.DataFrame
+    :param trials: Data from circletask_trials table.
+    :type trials: pandas.DataFrame
+    :return: Joined and recoded DataFrame.
+    :rtype: pandas.DataFrame
+    """
+    # Use users' index instead of id for obfuscation and shorter display.
+    users_inv_map = pd.Series(users.index, index=users.id)
+    # Now insert some data from other tables.
+    df = pd.DataFrame(index=trials.index)
+    df['user'] = trials.user_id.map(users_inv_map).astype('category')
+    df['session'] = trials['block_id'].map(blocks['nth_session']).astype('category')
+    df['block'] = trials['block_id'].map(blocks['nth_block']).astype('category')
+    df['constraint'] = trials['block_id'].map(blocks['treatment']).astype('category')  # ToDo: make contraint column obsolete
+    
+    df = pd.concat((df, trials), axis='columns')
+    # Add columns for easier filtering.
+    df['grab_diff'] = (df['df2_grab'] - df['df1_grab']).abs()
+    df['duration_diff'] = (df['df2_duration'] - df['df1_duration']).abs()
+    # Exclude columns.
+    df.drop(columns=['user_id', 'block_id'], inplace=True)
+    return df
+
+
 def get_valid_trials(dataframe):
     """ Remove trials where sliders where not grabbed concurrently or grabbed at all.
     
@@ -19,7 +50,6 @@ def get_valid_trials(dataframe):
     # Remove trials where sliders where not grabbed concurrently.
     mask = ~((df['df1_release'] <= df['df2_grab']) | (df['df2_release'] <= df['df1_grab']))
     df = df[mask]
-    df['grab diff'] = (df['df2_grab'] - df['df1_grab']).abs()
     return df
     
     

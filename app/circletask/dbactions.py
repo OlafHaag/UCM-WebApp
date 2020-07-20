@@ -268,7 +268,12 @@ def add_to_db(device_kwargs, user_kwargs, blocks_kwargs, trials_kwargs):
 
 
 def get_data(start_date=None, end_date=None):
-    """ Queries database for data an merges to a Dataframe. """
+    """ Queries database and returns Dataframes for users, circletask_blocks and circletask_trials tables.
+    Data between given start date and end date is returned. If not set, all data is returned.
+    
+    :returns: Data queried from tables as DataFrames.
+    :rtype: tuple[pandas.DataFrame]
+    """
     # Get data in time period.
     if not start_date and not end_date:
         blocks_df = pd.read_sql_table('circletask_blocks', db.engine, index_col='id')
@@ -283,18 +288,7 @@ def get_data(start_date=None, end_date=None):
         blocks_df = pd.read_sql_query(query_stmt, db.engine, index_col='id')
     
     users_df = pd.read_sql_table('users', db.engine)
-    # Use users' index instead of id for obfuscation and shorter display.
-    users_inv_map = pd.Series(users_df.index, index=users_df.id)
     # Read only trials from blocks we loaded.
     query_stmt = db.session.query(CircleTaskTrial).filter(CircleTaskTrial.block_id.in_(blocks_df.index)).statement
     trials_df = pd.read_sql_query(query_stmt, db.engine, index_col='id')
-    # Now insert some data from other tables.
-    trials_df.insert(0, 'user', trials_df.user_id.map(users_inv_map))
-    trials_df.insert(1, 'session', trials_df['block_id'].map(blocks_df['nth_session']))
-    trials_df.insert(2, 'block', trials_df['block_id'].map(blocks_df['nth_block']))
-    trials_df.insert(3, 'constraint', trials_df['block_id'].map(blocks_df['treatment']))
-    trials_df[['user', 'session', 'block', 'constraint']] = trials_df[['user', 'session',
-                                                                       'block', 'constraint']].astype('category')
-    # Exclude columns.
-    trials_df.drop(columns=['user_id', 'block_id'], inplace=True)
-    return trials_df
+    return users_df, blocks_df, trials_df

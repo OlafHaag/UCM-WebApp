@@ -473,13 +473,13 @@ def register_callbacks(dashapp):
             try:
                 # Query db on initial call when upload_msg is None or on successful upload.
                 if upload_msg is None or "Upload successful." in upload_msg[0].children:
-                    df = dbactions.get_data(start_date, end_date)
+                    df = analysis.join_data(*dbactions.get_data(start_date, end_date))
                 else:
                     return (dash.no_update,) * 3
             except (TypeError, AttributeError, IndexError):
                 return (dash.no_update,) * 3
         else:
-            df = dbactions.get_data(start_date, end_date)
+            df = analysis.join_data(*dbactions.get_data(start_date, end_date))
         # Remove invalid trials.
         df_adjusted = analysis.get_valid_trials(df)
         n_removed = len(df) - len(df_adjusted)
