@@ -62,7 +62,8 @@ def register_dashapp(app,
                          external_stylesheets=stylesheets,
                          external_scripts=scripts,
                          assets_folder=get_root_path(__name__) + f'/{base_pathname}/assets/',
-                         meta_tags=[meta_viewport])
+                         meta_tags=[meta_viewport],
+                         prevent_initial_callbacks=True)
 
     with app.app_context():
         dash_app.title = title
