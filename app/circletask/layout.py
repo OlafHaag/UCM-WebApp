@@ -56,7 +56,9 @@ theme = {'font-family': 'Lobster',
 def create_header():
     """ The header for the dashboard. """
     header_style = {'background-color': theme['background-color'], 'padding': '1.5rem', 'textAlign': 'center'}
-    header = html.Header(html.H2(children="EDA Dashboard", style=header_style))
+    header = html.Div(children=[html.Header(html.H2(children="EDA Dashboard", style=header_style)),
+                                dcc.Markdown("To load the data and start analyzing, "
+                                             "please press the **REFRESH FROM DB** button.")])
     return header
 
 
@@ -289,9 +291,11 @@ def generate_table(dataframe, table_id):
              'width': '5%'},
             {'if': {'column_id': 'session'},
              'width': '7%'},
+            {'if': {'column_id': 'condition'},
+             'width': '8%'},
             {'if': {'column_id': 'block'},
              'width': '5%'},
-            {'if': {'column_id': 'constraint'},
+            {'if': {'column_id': 'treatment'},
              'width': '8%'},
             {'if': {'column_id': 'outlier'},
              'width': '5.5%'},
@@ -385,6 +389,11 @@ def create_content():
                                                                                  'value': 'Show'}],
                                                                        value=['Show'],
                                                                        ),
+                                                         dcc.Checklist(id='ellipses-checkbox',
+                                                                       options=[{'label': 'Ellipses',
+                                                                                 'value': 'Show'}],
+                                                                       value=['Show'],
+                                                                       ),
                                                          html.Span(children=[
                                                              html.Label("Contamination",
                                                                         style={'marginInline': '5px',
@@ -451,8 +460,9 @@ def create_content():
                                )
     
     # ToDo: histogram of residuals
-    pca_graph = get_figure_div(dcc.Graph(id='barplot-pca'), 8, "Explained variance by different principal components"
-                                                               " in percent.")
+    pca_graph = get_figure_div(dcc.Graph(id='barplot-pca'),
+                               8, "Explained variance by different principal components in percent.")
+    pca_graph.style = {'marginTop': '70px'}  # Match it to the table y position next to it.
     
     pca_table = get_table_div(generate_simple_table(df, 'pca-table'), 3,
                               "Divergence between principal components "
@@ -462,7 +472,6 @@ def create_content():
     var_graph = get_figure_div(dcc.Graph(id='barplot-variance', style={'height': theme['height']}), 9,
                                "**A** Variance of the sum of df1 and df2 grouped by block and participant. **B** "
                                "Mean of the sum of df1 and df2.")
-    var_graph.style = {'marginTop': '70px'}  # Match it to the table y position.
     
     # Table of descriptive statistics and synergy indices.
     # ToDo: When LaTeX rendering is supported in dash Markdown, convert.

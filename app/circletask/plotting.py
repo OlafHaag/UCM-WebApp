@@ -3,6 +3,7 @@ This module contains functions for creating figures.
 """
 import string
 
+import pandas as pd
 import numpy as np
 from plotly import express as px, graph_objs as go, figure_factory as ff
 from plotly.subplots import make_subplots
@@ -13,11 +14,16 @@ theme = {'graph_margins': {'l': 40, 'b': 40, 't': 40, 'r': 10},
          # Use colors consistently to quickly grasp what is what.
          'df1': 'cornflowerblue',
          'df2': 'palevioletred',
+         'df1|df2': '#FECB52',
          'sum': 'peru',
          'parallel': 'lightgreen',
          'orthogonal': 'salmon',
+         'pre': '#636EFA',
+         'post': '#00CC96',
          'colors': px.colors.qualitative.Plotly,
          }
+
+treatment_order = pd.Series({'pre': 0, 'df1': 1, 'df2': 2, 'df1|df2': 3, 'post': 4})
 
 
 def get_ellipse_coordinates(x_center=0, y_center=0, axis=(1, 0), a=1, b=1, n=100):
@@ -62,20 +68,20 @@ def generate_trials_figure(df, contour_data=None):
         data = []
     else:
         data = [go.Scattergl(
-            x=df[df['block'] == i]['df1'],
-            y=df[df['block'] == i]['df2'],
+            x=df[df['treatment'] == t]['df1'],
+            y=df[df['treatment'] == t]['df2'],
             text=[f"df1={j['df1']:.2f}<br />df2={j['df2']:.2f}<br />Sum={j['sum']:.2f}<br />Participant {j['user']}"
-                  f"<br />Session {j['session']}<br />Block {i}<br />Trial {j['trial']}"
-                  for _, j in df[df['block'] == i].iterrows()],
+                  f"<br />Session {j['session']}<br />Block {t}<br />Trial {j['trial']}"
+                  for _, j in df[df['treatment'] == t].iterrows()],
             hoverinfo='text',
             mode='markers',
             opacity=0.7,
             marker={'size': 10,
-                    'color': theme['colors'][i],
+                    'color': theme[t],
                     'line': {'width': 0.5, 'color': 'white'}
                     },
-            name=f"Block {i} {','.join(df[df['block'] == i]['constraint'].unique())}",
-        ) for i in df['block'].unique()]
+            name=f"Treatment {t}",
+        ) for t in treatment_order[df['treatment'].unique()].sort_values().index]
 
     legend = go.layout.Legend(
         xanchor='right',
@@ -148,7 +154,7 @@ def get_pca_annotations(pca_dataframe):
     arrows = list()
     # Each block displays its principal components.
     try:
-        for name, group in pca_dataframe.groupby('block'):
+        for name, group in pca_dataframe.groupby('treatment'):
             vectors = analysis.get_pca_vectors(group)  # origin->destination pairs.
             
             arrows.extend([dict(
@@ -164,7 +170,7 @@ def get_pca_annotations(pca_dataframe):
                 arrowhead=3,
                 arrowsize=1,
                 arrowwidth=1.5,
-                arrowcolor=theme['colors'][name]  # Match arrow color to block.
+                arrowcolor=theme[name]  # Match arrow color to block.
             )
                 for v0, v1 in vectors])
     except KeyError:
@@ -181,7 +187,7 @@ def add_pca_ellipses(fig, pca_dataframe):
     """
     # Each block displays its principal components.
     try:
-        for name, group in pca_dataframe.groupby('block'):
+        for name, group in pca_dataframe.groupby('treatment'):
             x, y = get_ellipse_coordinates(*group[['meanx', 'meany']].iloc[0],
                                            axis=group[['x', 'y']].iloc[0],
                                            a=np.sqrt(group['var_expl'].iloc[0])*2,
@@ -190,7 +196,7 @@ def add_pca_ellipses(fig, pca_dataframe):
             fig.add_scatter(x=x,
                             y=y,
                             mode='lines',
-                            line_color=theme['colors'][name],
+                            line_color=theme[name],
                             showlegend=False,
                             hoverinfo='skip',
                             )
@@ -198,21 +204,23 @@ def add_pca_ellipses(fig, pca_dataframe):
         pass
 
 
-def generate_histograms(dataframe, by=None):
+def generate_histograms(dataframe, by=None, legend_title=None):
     """ Plot distribution of data to visually check for normal distribution.
     
     :param dataframe: Data for binning. When by is given this must be only 2 columns with one of them being the grouper.
     :type dataframe: pandas.DataFrame
     :param by: dataframe column to group data by.
     :type by: str
+    :param legend_title:
+    :type legend_title: str
     """
     legend = go.layout.Legend(
         xanchor='right',
         yanchor='top',
         orientation='v',
+        title=legend_title,
     )
     
-    cols = list(dataframe.columns)
     if dataframe.empty:
         fig = go.Figure()
         fig.update_xaxes(range=[0, 100])
@@ -268,14 +276,16 @@ def generate_pca_figure(dataframe):
     layout = dict(
         legend=legend,
         yaxis={'title': 'Explained variance in percent'},
-        xaxis={'title': 'Block'},
+        xaxis={'title': 'Treatment'},
         margin={'l': 60, 'b': 40, 't': 40, 'r': 10},
         hovermode=False,
     )
     
     try:
-        fig = px.bar(dataframe, x='block', y='var_expl_ratio', barmode='group', color='PC')
-        fig.update_xaxes(tickvals=dataframe['block'].unique())
+        fig = px.bar(dataframe, x='treatment', y='var_expl_ratio', barmode='group', color='PC',
+                     category_orders={
+                         'treatment': list(treatment_order[dataframe['treatment'].unique()].sort_values().index)
+                     })
     except (KeyError, ValueError):
         fig = go.Figure()
     else:
@@ -306,28 +316,28 @@ def generate_means_figure(dataframe, variables=None):
                         row_titles=list(string.ascii_uppercase[:len(variables)]))  # A, B, C, ...
     # Handle empty data.
     if dataframe.empty:
-        fig.layout.update(xaxis2_title='Block',
+        fig.layout.update(xaxis2_title='Treatment',
                           margin=theme['graph_margins'],
                           )
         # Empty dummy traces.
         for i, v in enumerate(variables):
             fig.add_trace({}, row=i+1, col=1)
             fig.update_yaxes(title_text=v['label'], hoverformat='.2f', row=i+1, col=1)
-        fig.update_xaxes(title_text="Block", row=len(variables), col=1)
+        fig.update_xaxes(tickvals=treatment_order.values, ticktext=treatment_order.index,
+                         row=len(variables), col=1)
         return fig
     
     # Subplots for variables.
-    blocks = dataframe['block'].unique()
     grouped = dataframe.groupby('user')
     # Variance plot.
     for i, v in enumerate(variables):
         for name, group in grouped:
             fig.add_trace(go.Bar(
-                x=group['block'],
+                x=group['treatment'].map(treatment_order),
                 y=group[v['var']],
                 name=f'Participant {name}',
                 showlegend=False,
-                marker={'color': [theme['colors'][j] for j in group['block']],
+                marker={'color': group['treatment'].map(theme),
                         'opacity': 0.5},
                 hovertemplate="%{text}: %{y:.2f}",
                 text=[v['label']] * len(group),
@@ -336,22 +346,24 @@ def generate_means_figure(dataframe, variables=None):
             )
     
         # Add mean across participants by block
-        means = analysis.get_mean(dataframe, column=v['var'], by='block')
-        for block, value in means.iteritems():
+        means = analysis.get_mean(dataframe, column=v['var'], by='treatment')
+        for treatment, value in means.iteritems():
             fig.add_trace(go.Scatter(
-                x=[block - 0.5, block, block + 0.5],
+                x=[treatment_order[treatment] - 0.5, treatment_order[treatment], treatment_order[treatment] + 0.5],
                 y=[value, value, value],
-                name=f"Block {block}",
+                name=f"Treatment {treatment}",
                 showlegend=(not i),  # Show legend only for first trace to prevent duplicates.
-                hovertext=f'Block {block}',
+                hovertext=f'Treatment {treatment}',
                 hoverinfo='y',
                 textposition='top center',
                 mode='lines',
-                marker={'color': theme['colors'][block]},
+                marker={'color': theme[treatment]},
                 hovertemplate=f"Mean {v['label']}: {value:.2f}",
             ), row=i+1, col=1)
         fig.update_yaxes(title_text=v['label'], hoverformat='.2f', row=i+1, col=1)
-    fig.update_xaxes(tickvals=blocks, title_text="Block", row=len(variables), col=1)
+    fig.update_xaxes(tickvals=treatment_order[dataframe['treatment'].unique()],
+                     ticktext=treatment_order[dataframe['treatment'].unique()].index,
+                     title_text="Treatment", row=len(variables), col=1)
 
     # Layout
     legend = go.layout.Legend(
@@ -373,7 +385,7 @@ def generate_means_figure(dataframe, variables=None):
     return fig
 
 
-def generate_violin_figure(dataframe, columns, ytitle):
+def generate_violin_figure(dataframe, columns, ytitle, legend_title=None):
     """ Plot 2 columns of data as violin plot, grouped by block.
 
     :param dataframe: Variance of projections.
@@ -382,6 +394,8 @@ def generate_violin_figure(dataframe, columns, ytitle):
     :type columns: list
     :param ytitle: Title of Y-axis. What is being plotted? What are the units of the data?
     :type ytitle: str
+    :param legend_title: What's the common denominator of the columns?
+    :type legend_title: str
 
     :return: Figure object of graph.
     :rtype: plotly.graph_objs.Figure
@@ -390,10 +404,11 @@ def generate_violin_figure(dataframe, columns, ytitle):
         xanchor='right',
         yanchor='top',
         orientation='v',
+        title=legend_title,
     )
     
     fig = go.Figure()
-    fig.layout.update(xaxis_title='Block',
+    fig.layout.update(xaxis_title='Treatment',
                       yaxis_title=ytitle,
                       legend=legend,
                       margin=theme['graph_margins'])
@@ -403,21 +418,21 @@ def generate_violin_figure(dataframe, columns, ytitle):
     # Make sure we plot only 2 columns, left and right.
     columns = columns[:2]
     sides = ('negative', 'positive')
-    grouped = dataframe.groupby('block')
+    grouped = dataframe.groupby('treatment')
     for name, group_df in grouped:
         for i, col in enumerate(columns):
-            fig.add_trace(go.Violin(x=group_df['block'],
+            fig.add_trace(go.Violin(x=group_df['treatment'].map(treatment_order),
                                     y=group_df[col],
                                     legendgroup=col, scalegroup=col, name=col,
                                     side=sides[i],
                                     pointpos=i - 0.5,
                                     line_color=theme[col],
                                     text=[f"{col}<br />participant: {j['user']}<br />"
-                                          f"block: {j['block']}<br />constraint: {j['constraint']}"
+                                          f"block: {j['block']}<br />condition: {j['condition']}"
                                           for _, j in group_df.iterrows()],
                                     hoverinfo='y+text',
                                     spanmode='hard',
-                                    showlegend=bool(name == dataframe['block'].unique()[0]),  # Only 1 legend.
+                                    showlegend=bool(name == dataframe['treatment'].unique()[0]),  # Only 1 legend.
                                     )
                           )
     
@@ -427,15 +442,15 @@ def generate_violin_figure(dataframe, columns, ytitle):
                       points='all',  # Show all points.
                       jitter=0.1,  # Add some jitter on points for better visibility.
                       scalemode='count')  # Scale violin plot area with total count.
-        
-    block_range = [dataframe['block'].astype(float).min() - 0.5, dataframe['block'].astype(float).max() + 0.5]
+
     fig.update_layout(violingap=0, violingroupgap=0, violinmode='overlay', hovermode='closest')
-    fig.update_xaxes(tickvals=dataframe['block'].unique(), range=block_range)
+    fig.update_xaxes(tickvals=treatment_order[dataframe['treatment'].unique()],
+                     ticktext=treatment_order[dataframe['treatment'].unique()].index)
     fig.update_yaxes(zeroline=True, zerolinewidth=2, zerolinecolor='LightPink')
     return fig
 
 
-def generate_lines_plot(dataframe, y_var, errors=None, by='user', color_col=None):
+def generate_lines_plot(dataframe, y_var, errors=None, by='user', facets='condition', color_col=None):
     """ Intended for use with either df1/df2 or parallel/orthogonal.
     
     :param dataframe: Values to plot
@@ -446,6 +461,8 @@ def generate_lines_plot(dataframe, y_var, errors=None, by='user', color_col=None
     :type errors: str|None
     :param by: Line group. What any column in dataframe will be grouped by.
     :type by: str
+    :param facets: Separate into several subplots by this variable.
+    :type facets: str
     :param color_col: Column containing keys for colors from theme.
 
     :return: Figure object of graph.
@@ -455,20 +472,29 @@ def generate_lines_plot(dataframe, y_var, errors=None, by='user', color_col=None
         xanchor='right',
         yanchor='top',
         orientation='v',
+        title=color_col.upper(),
     )
     
-    hover_data = ['block', 'constraint', y_var, errors, by] if errors else ['block', 'constraint', y_var, by]
+    hover_data = ['block', 'treatment', y_var, errors, by] if errors else ['block', 'treatment', y_var, by]
     try:
-        block_range = [dataframe['block'].astype(float).min() - 0.5, dataframe['block'].astype(float).max() + 0.5]
-        fig = px.line(data_frame=dataframe, x='block', y=y_var, line_group=by, error_y=errors,
-                      color=color_col, color_discrete_map=theme,
-                      hover_data=hover_data, range_x=block_range,
+        x_range = [dataframe['block'].unique().astype(float).min() - 0.5, dataframe['block'].unique().astype(float).max() + 0.5]
+        
+        fig = px.line(data_frame=dataframe, x='block', y=y_var, error_y=errors,
+                      line_group=by, facet_col=facets, facet_col_wrap=0, color=color_col, color_discrete_map=theme,
+                      hover_data=hover_data, range_x=x_range,
                       render_mode='webgl')
         fig.update_xaxes(tickvals=dataframe['block'].unique())
     except (KeyError, ValueError):
         fig = go.Figure()
-    fig.layout.update(xaxis_title='Block',
-                      yaxis_title=y_var.capitalize(),
+    
+    # We have a variable number of subplots. Capitalize all x-axis titles.
+    xaxes = [fig.layout[e] for e in fig.layout if e[0:5] == 'xaxis']
+    try:
+        for ax in xaxes:
+            ax['title']['text'] = ax['title']['text'].capitalize()
+    except AttributeError:
+        pass
+    fig.layout.update(yaxis_title=y_var.capitalize(),
                       legend=legend,
                       margin=theme['graph_margins'])
     return fig

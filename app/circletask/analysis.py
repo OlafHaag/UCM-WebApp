@@ -25,8 +25,18 @@ def join_data(users, blocks, trials):
     df = pd.DataFrame(index=trials.index)
     df['user'] = trials.user_id.map(users_inv_map).astype('category')
     df['session'] = trials['block_id'].map(blocks['nth_session']).astype('category')
+    # Map whole sessions to the constraint in the treatment block as a condition for easier grouping during analysis.
+    df['condition'] = trials['block_id'].map(blocks[['session_uid', 'treatment']].replace(
+        {'treatment': {'': np.nan}}).groupby('session_uid')['treatment'].ffill().bfill()).astype('category')
     df['block'] = trials['block_id'].map(blocks['nth_block']).astype('category')
-    df['constraint'] = trials['block_id'].map(blocks['treatment']).astype('category')  # ToDo: make contraint column obsolete
+    df['treatment'] = trials['block_id'].map(blocks.treatment.where(blocks.treatment != '',
+                                                                    blocks.nth_block.map({1: 'pre', 3: 'post'}))
+                                             ).astype('category')
+    # Add pre-treatment and post-treatment labels to trials for each block.
+    # Theoretically, one could have changed number of blocks and order of treatment, but we assume default order here.
+    #df['treatment'] = trials['block_id'].map(blocks.treatment.replace(to_replace={r'\w+': 1, r'^\s*$': 0},
+    #                                                                  regex=True)).astype('category')
+    df['constraint'] = trials['block_id'].map(blocks['treatment']).astype('category')  # Obsolete.
     
     df = pd.concat((df, trials), axis='columns')
     # Add columns for easier filtering.
@@ -363,11 +373,16 @@ def get_descriptive_stats(data, by=None):
 
 
 def get_statistics(df_trials, df_proj):
-    """
+    """ Calculate descriptive statistics for key values of the anaylsis.
     
-    :return:
+    :param df_trials: Data from joined table on trials.
+    :type df_trials: pandas.DataFrame
+    :param df_proj: Projections onto UCM and its orthogonal space.
+    :type df_proj: pandas.DataFrame
+    :return: Descriptive statistics and synergy indices.
+    :rtype: pandas.DataFrame
     """
-    groupers = ['user', 'session', 'block']
+    groupers = ['user', 'session', 'condition', 'block', 'treatment']
     try:
         # Get only those trials we have the projections for, in the same order.
         df_trials = df_trials.iloc[df_proj.index]
@@ -376,7 +391,6 @@ def get_statistics(df_trials, df_proj):
         df_proj_stats = get_descriptive_stats(pd.DataFrame(columns=df_proj.columns))
         df_dof_stats = get_descriptive_stats(pd.DataFrame(columns=df_trials.columns))
         cov = pd.DataFrame(columns=[('df1,df2 covariance', '')])
-        constraints = pd.Series(name='constraint')
     else:
         df_proj[groupers] = df_trials[groupers]
         # Get statistic characteristics of absolute lengths.
@@ -392,8 +406,6 @@ def get_statistics(df_trials, df_proj):
             cov = cov.to_frame(('df1,df2 covariance', ''))  # MultiIndex.
         except AttributeError:  # In case cov is an empty Dataframe.
             cov = pd.DataFrame(columns=pd.MultiIndex.from_tuples([('df1,df2 covariance', '')]))
-        # We lost the constraint column along the way, reconstruct it with same index as descriptive statistics.
-        constraints = df_trials.groupby(groupers)['constraint'].unique().dropna().apply(",".join)
 
     # We now have 1 count column too many, since the projection statistics already has the identical column.
     df_dof_stats.drop('count', axis='columns', level=0, inplace=True)
@@ -405,15 +417,13 @@ def get_statistics(df_trials, df_proj):
     df_synergies.columns = pd.MultiIndex.from_product([df_synergies.columns, ['']])
     # Join the 3 statistics to be displayed in a single table.
     df = pd.concat((df_dof_stats, cov, df_proj_stats, df_synergies), axis='columns')
-    # Re-introduce constraint column.
-    df.insert(0, constraints.name, constraints)
     return df
 
 
 def wide_to_long(df, stubs, suffixes, j):
     """ Transforms a dataframe to long format, where the stubs are melted into a single column with name j and suffixes
     into value columns. Filters for all columns that are a stubs+suffixes combination.
-    Keeps 'block', 'user', and 'constraint' as id_vars. When an error is encountered an emtpy dataframe is returned.
+    Keeps 'user', 'treatment' as id_vars. When an error is encountered an emtpy dataframe is returned.
     
     :type df: pandas.DataFrame
     :type stubs: list[str]
@@ -429,13 +439,14 @@ def wide_to_long(df, stubs, suffixes, j):
     val_cols = [" ".join(x) for x in itertools.product(stubs, suffixes)]
     try:
         # Filter for data we want to plot.
-        df = df[['user', 'block', 'constraint', *val_cols]]
+        df = df[['user', 'condition', 'block', 'treatment', *val_cols]]
         # Reverse stub and suffix for long format. We want the measurements as columns, not the categories.
         df.columns = [" ".join(x.split(" ")[::-1]) for x in df.columns]
-        long_df = pd.wide_to_long(df=df, stubnames=suffixes, i=['user', 'block', 'constraint'], j=j, sep=" ",
-                                  suffix=f'(!?{"|".join(stubs)})')
+        long_df = pd.wide_to_long(df=df, stubnames=suffixes, i=['user', 'condition', 'block', 'treatment'],
+                                  j=j, sep=" ", suffix=f'(!?{"|".join(stubs)})')
         long_df.reset_index(inplace=True)
     except (KeyError, ValueError):
-        long_df = pd.DataFrame(columns=['block', 'user', 'constraint', j, *suffixes])
-    long_df[['block', 'user']] = long_df[['block', 'user']].astype('category')
+        long_df = pd.DataFrame(columns=['user', 'condition', 'block', 'treatment', j, *suffixes])
+    long_df[['user', 'condition', 'block', 'treatment']] = long_df[['user', 'condition',
+                                                                    'block', 'treatment']].astype('category')
     return long_df

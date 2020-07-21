@@ -483,7 +483,7 @@ def register_callbacks(dashapp):
         # Remove invalid trials.
         df_adjusted = analysis.get_valid_trials(df)
         n_removed = len(df) - len(df_adjusted)
-        removal_msg = f"{n_removed} trials have been removed from the selected time period due to incorrect execution."\
+        removal_msg = f"{n_removed} trials have been excluded from the selected time period due to incorrect execution."\
                       + bool(n_removed) * " Sliders were either not used concurrently or not used at all."
         users = [{'label': p, 'value': p} for p in df['user'].unique()]
         return df_to_records(df_adjusted), users, removal_msg
@@ -510,14 +510,16 @@ def register_callbacks(dashapp):
             z = np.ones((101, 101)).astype(int)
         df['outlier'] = outliers.astype(int)
         # Format table columns.
-        columns = layout.get_columns_settings(df, order=[0, 1, 2, 3, 4, 5, 6, 7, 10, 14, 8, 11, 9, 12, 13, 15])
+        columns = layout.get_columns_settings(df, order=[0, 1, 2, 3, 4, 6, 7, 8, 15, 9, 12, 16, 10, 13, 11, 14, 17, 18])
         
         if not users_selected:
             # Return all the rows on initial load/no user selected.
             return df_to_records(df), columns, z.tolist()
-        
-        df[['user', 'block', 'constraint', 'outlier']] = df[['user', 'block', 'constraint', 'outlier']].astype(
-            'category')
+        try:
+            df[['user', 'block', 'condition', 'treatment', 'outlier']] = df[['user', 'block', 'condition', 'treatment',
+                                                                             'outlier']].astype('category')
+        except KeyError:
+            pass
         filtered = df.query('`user` in @users_selected')
         return df_to_records(filtered), columns, z.tolist()
     
@@ -539,20 +541,22 @@ def register_callbacks(dashapp):
             filter = query.replace('{', '').replace('}', '')
         except AttributeError:
             filter = ""
-        filtered_msg = bool(n_filtered) * f" {n_filtered} trials were removed by filters set in the table ({filter})."
+        filtered_msg = bool(n_filtered) * f" {n_filtered} trials were excluded by filters set in the table ({filter})."
         return filtered_msg
     
     @dashapp.callback(Output('scatterplot-trials', 'figure'),
                       [Input('pca-store', 'data'),  # Delay update until PCA is through.
-                       Input('pca-checkbox', 'value')],
+                       Input('pca-checkbox', 'value'),
+                       Input('ellipses-checkbox', 'value')],
                       [State('trials-table', 'derived_virtual_data'),
                        State('datastore', 'data'),
                        State('contour-store', 'data')])
-    def set_trials_plot(pca_data, show_pca, table_data, stored_data, contour):
+    def set_trials_plot(pca_data, show_pca, show_ellipses, table_data, stored_data, contour):
         """ Update the graph for displaying trial data as scatter plot. """
         df = records_to_df(table_data)
         try:
-            df[['user', 'block', 'constraint']] = df[['user', 'block', 'constraint']].astype('category')
+            df[['user', 'condition', 'block', 'treatment']] = df[['user', 'condition', 'block',
+                                                                  'treatment']].astype('category')
         except KeyError:
             pass
         z = np.array(contour)
@@ -561,9 +565,10 @@ def register_callbacks(dashapp):
         # PCA visualisation.
         pca_df = records_to_df(pca_data)
         if 'Show' in show_pca:
-            plotting.add_pca_ellipses(fig, pca_df)
             arrows = plotting.get_pca_annotations(pca_df)
             fig.layout.update(annotations=arrows)
+        if 'Show' in show_ellipses:
+            plotting.add_pca_ellipses(fig, pca_df)
             
         return fig
     
@@ -574,8 +579,8 @@ def register_callbacks(dashapp):
         """ Update histograms when data in trials table changes. """
         df = records_to_df(table_data)
         try:
-            fig_dfs = plotting.generate_histograms(df[['df1', 'df2']])
-            fig_sum = plotting.generate_histograms(df[['block', 'sum']], by='block')
+            fig_dfs = plotting.generate_histograms(df[['df1', 'df2']], legend_title="DOF")
+            fig_sum = plotting.generate_histograms(df[['treatment', 'sum']], by='treatment', legend_title="Block Type")
         except KeyError:
             fig = plotting.generate_histograms(pd.DataFrame())
             return fig, fig
@@ -608,14 +613,15 @@ def register_callbacks(dashapp):
         """ Update histograms when data in trials table changes. """
         df = records_to_df(table_data)
         try:
-            onset_df = df[['block', 'user', 'constraint', 'df1_grab', 'df2_grab']]
+            onset_df = df[['user', 'condition', 'block', 'treatment', 'df1_grab', 'df2_grab']]
             fig_onset = plotting.generate_violin_figure(onset_df.rename(columns={'df1_grab': 'df1', 'df2_grab': 'df2'}),
-                                                        ['df1', 'df2'], ytitle="Grab Onset (s)")
+                                                        ['df1', 'df2'], ytitle="Grab Onset (s)", legend_title="DOF")
             
-            duration_df = df[['block', 'user', 'constraint', 'df1_duration', 'df2_duration']]
+            duration_df = df[['user', 'condition', 'block', 'treatment', 'df1_duration', 'df2_duration']]
             fig_duration = plotting.generate_violin_figure(duration_df.rename(columns={'df1_duration': 'df1',
                                                                                        'df2_duration': 'df2'}),
-                                                           ['df1', 'df2'], ytitle='Grab Duration (s)')
+                                                           ['df1', 'df2'], ytitle='Grab Duration (s)',
+                                                           legend_title="DOF")
         except KeyError:
             raise PreventUpdate
         return fig_onset, fig_duration
@@ -636,15 +642,16 @@ def register_callbacks(dashapp):
         """ Save results of PCA into a store. """
         df = records_to_df(table_data, columns=table_columns)
         try:
-            df[['user', 'block', 'constraint']] = df[['user', 'block', 'constraint']].astype('category')
-            pca_df = df.groupby('block').apply(analysis.get_pca_data)
+            df[['user', 'condition', 'block', 'treatment']] = df[['user', 'condition',
+                                                                  'block', 'treatment']].astype('category')
+            pca_df = df.groupby('treatment').apply(analysis.get_pca_data)
         except KeyError:
             pca_df = pd.DataFrame()
         else:
             pca_df.reset_index(inplace=True)
     
         if pca_df.empty:
-            pca_df = pd.DataFrame(None, columns=['block', 'PC', 'var_expl', 'var_expl_ratio',
+            pca_df = pd.DataFrame(None, columns=['treatment', 'PC', 'var_expl', 'var_expl_ratio',
                                                  'x', 'y', 'meanx', 'meany'])
         return df_to_records(pca_df)
 
@@ -654,7 +661,7 @@ def register_callbacks(dashapp):
         """ Update bar-plot showing explained variance per principal component. """
         df = records_to_df(pca_data)
         try:
-            df[['block', 'PC']] = df[['block', 'PC']].astype('category')
+            df[['treatment', 'PC']] = df[['treatment', 'PC']].astype('category')
         except KeyError:
             pass
         fig = plotting.generate_pca_figure(df)
@@ -667,11 +674,11 @@ def register_callbacks(dashapp):
         """ Update table for showing divergence between principal components and UCM vectors. """
         pca_df = records_to_df(pca_data)
         if pca_df.empty:
-            angle_df = pd.DataFrame(None, columns=['block', 'PC', 'parallel', 'orthogonal'])
+            angle_df = pd.DataFrame(None, columns=['treatment', 'PC', 'parallel', 'orthogonal'])
         else:
             ucm_vec = analysis.get_ucm_vec()
-            angle_df = pca_df.groupby('block').apply(analysis.get_pc_ucm_angles, ucm_vec)
-            angle_df.reset_index(level='block', inplace=True)
+            angle_df = pca_df.groupby('treatment').apply(analysis.get_pc_ucm_angles, ucm_vec)
+            angle_df.reset_index(level='treatment', inplace=True)
         columns = layout.get_pca_columns_settings(angle_df)
         return df_to_records(angle_df), columns
     
@@ -685,10 +692,11 @@ def register_callbacks(dashapp):
         ucm_vec = analysis.get_ucm_vec()
         df = records_to_df(table_data, columns=table_columns)
         try:
-            df[['user', 'session', 'block', 'constraint']] = df[['user', 'session', 'block',
-                                                                 'constraint']].astype('category')
+            df[['user', 'session', 'condition', 'block', 'treatment']] = df[['user', 'session', 'block', 'condition',
+                                                                             'treatment']].astype('category')
             # We compute the projections based on user & per block!
-            df_proj = df.groupby(['user', 'session', 'block'])[['df1', 'df2']].apply(analysis.get_projections, ucm_vec)
+            df_proj = df.groupby(['user', 'session', 'treatment'])[['df1', 'df2']].apply(analysis.get_projections,
+                                                                                         ucm_vec)
         except KeyError:
             df_proj = pd.DataFrame()
             
@@ -716,7 +724,7 @@ def register_callbacks(dashapp):
         df.columns = [" ".join(col).strip() for col in df.columns.to_flat_index()]
         df.reset_index(inplace=True)
         # Get display settings for numeric cells.
-        columns = layout.get_columns_settings(df, order=[0, 1, 2, 3, 4, 6, 8, 5, 7, 10, 9, 11, 13, 12, 14, 16, 17, 15])
+        columns = layout.get_columns_settings(df, order=[0, 1, 2, 3, 4, 5, 7, 9, 6, 8, 11, 10, 12, 14, 13, 15, 17, 18, 16])
         return df_to_records(df), columns
 
     @dashapp.callback(Output('df-line-plot', 'figure'),
@@ -750,12 +758,13 @@ def register_callbacks(dashapp):
         """ Update violin-plot for showing means of degrees of freedom per block. """
         df = records_to_df(data)
         try:
-            df[['user', 'block', 'constraint']] = df[['user', 'block', 'constraint']].astype('category')
+            df[['user', 'condition', 'block', 'treatment']] = df[['user', 'condition',
+                                                                  'block', 'treatment']].astype('category')
         except KeyError:
             col_names = [c['id'] for c in header]
             df = pd.DataFrame(columns=col_names)
         df.rename(columns={'df1 mean': 'df1', 'df2 mean': 'df2'}, inplace=True)
-        fig = plotting.generate_violin_figure(df, columns=['df1', 'df2'], ytitle='Mean')
+        fig = plotting.generate_violin_figure(df, columns=['df1', 'df2'], ytitle='Mean', legend_title="DOF")
         return fig
 
     @dashapp.callback(Output('proj-violin-plot', 'figure'),
@@ -765,13 +774,14 @@ def register_callbacks(dashapp):
         """ Update projection violin-plot showing variances per block. """
         df = records_to_df(data)
         try:
-            df[['user', 'block', 'constraint']] = df[['user', 'block', 'constraint']].astype('category')
+            df[['user', 'condition', 'block', 'treatment']] = df[['user', 'condition',
+                                                                  'block', 'treatment']].astype('category')
         except KeyError:
             col_names = [c['id'] for c in header]
             df = pd.DataFrame(columns=col_names)
         # Rename columns for coloring.
         df.rename(columns={'parallel variance': 'parallel', 'orthogonal variance': 'orthogonal'}, inplace=True)
         fig = plotting.generate_violin_figure(df, columns=['parallel', 'orthogonal'],
-                                              ytitle='Variance')
+                                              ytitle='Variance', legend_title="PROJECTION")
         return fig
 
