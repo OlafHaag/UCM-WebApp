@@ -14,12 +14,12 @@ theme = {'graph_margins': {'l': 40, 'b': 40, 't': 40, 'r': 10},
          # Use colors consistently to quickly grasp what is what.
          'df1': 'cornflowerblue',
          'df2': 'palevioletred',
-         'df1|df2': '#FECB52',
+         'df1|df2': 'mediumpurple',
          'sum': 'peru',
          'parallel': 'lightgreen',
          'orthogonal': 'salmon',
-         'pre': '#636EFA',
-         'post': '#00CC96',
+         'pre': 'mediumseagreen',
+         'post': 'sandybrown',
          'colors': px.colors.qualitative.Plotly,
          }
 
