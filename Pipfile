@@ -39,6 +39,7 @@ plotly = ">=4.8.0"
 setuptools = "*"
 flask-compress = "*"
 pytz = "*"
+pingouin = "*"
 
 [requires]
 python_version = "3.7"

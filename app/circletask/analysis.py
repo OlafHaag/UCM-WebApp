@@ -1,7 +1,9 @@
 import itertools
 
 import pandas as pd
+import pingouin as pg
 import numpy as np
+from scipy.stats import wilcoxon
 from sklearn.decomposition import PCA
 from sklearn.covariance import EllipticEnvelope
 
@@ -288,10 +290,10 @@ def get_synergy_indices(variances, n=2, d=1):
         dV = n * (variances['parallel']/(n-d) - variances['orthogonal']/d) \
              / variances[['parallel', 'orthogonal']].sum(axis='columns')
     except KeyError:
-        synergy_indices = pd.DataFrame(columns=["$\\Delta V$", "$\\Delta V_{z} $"])
+        synergy_indices = pd.DataFrame(columns=["dV", "dVz"])
     else:
         dVz = 0.5 * np.log((n/d + dV)/(n/(n-d) - dV))
-        synergy_indices = pd.DataFrame({"$\\Delta V$": dV, "$\\Delta V_z$": dVz})
+        synergy_indices = pd.DataFrame({"dV": dV, "dVz": dVz})
     return synergy_indices
 
 
@@ -420,14 +422,23 @@ def get_statistics(df_trials, df_proj):
     return df
 
 
+def wilcoxon_rank_test(data):
+    w, p = wilcoxon(data['parallel'], data['orthogonal'], alternative='greater')
+    return p < 0.05, w, p
+
+
 def wide_to_long(df, stubs, suffixes, j):
     """ Transforms a dataframe to long format, where the stubs are melted into a single column with name j and suffixes
     into value columns. Filters for all columns that are a stubs+suffixes combination.
     Keeps 'user', 'treatment' as id_vars. When an error is encountered an emtpy dataframe is returned.
     
+    :param df: Data in wide/mixed format.
     :type df: pandas.DataFrame
+    :param stubs: First part of a column name. These names will be the values of the new column j.
     :type stubs: list[str]
+    :param suffixes: Second part of a column name. These will be the new columns holding the respective values.
     :type suffixes: str|list[str]
+    :param j: Name for new column containing stubs.
     :type j: str
     
     :return: Filtered Dataframe in long format.
@@ -450,3 +461,15 @@ def wide_to_long(df, stubs, suffixes, j):
     long_df[['user', 'condition', 'block', 'treatment']] = long_df[['user', 'condition',
                                                                     'block', 'treatment']].astype('category')
     return long_df
+
+
+def mixed_anova_synergy_index_z(dataframe):
+    """ 3 x (3) Two-way split-plot ANOVA with between-factor condition and within-factor block.
+    
+    :param dataframe: Aggregated data containing Fisher-z-transformed synergy index.
+    :type dataframe: pandas.DataFrame
+    :return: mixed-design ANOVA results.
+    :rtype: pandas.DataFrame
+    """
+    aov = pg.mixed_anova(data=dataframe, dv='dVz', within='block', subject='user', between='condition')
+    return aov

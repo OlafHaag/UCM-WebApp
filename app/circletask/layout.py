@@ -221,7 +221,25 @@ def get_columns_settings(dataframe, order=None):
             cols = dataframe.columns
     for c in cols:
         # Nicer column names. Exclude df1 and df2 from renaming.
-        label = c.replace("_", " ").title().replace("Df1", "df1").replace("Df2", "df2")
+        if c == 'dV':
+            label = '$\\Delta V$'
+        elif c == 'dVz':
+            label = '$\\Delta V_z$'
+        elif c == 'p-unc':
+            label = 'p'
+        elif c == 'SS':
+            label = 'Sum of Squares'
+        elif c == 'MS':
+            label = 'Mean Square'
+        elif c == 'np2':
+            label = '$\\eta_{p}^{2}$'
+        elif c == 'eps':
+            label = '$\\epsilon$'
+        else:
+            label = c.replace("_", " ").title()
+        if 'Df' in label:
+            label = label.replace("Df1", "df1").replace("Df2", "df2")
+            
         if dataframe[c].dtype == 'float':
             columns.append({'name': label,
                             'id': c,
@@ -351,6 +369,22 @@ def generate_simple_table(dataframe, table_id):
         }],
     )
     return table
+
+
+#######################
+#        Text         #
+#######################
+def wilcoxon_rank_result():
+    comp = html.Div(className='six columns', children=[
+        html.H3("Difference between projections parallel and orthogonal to the UCM across participants."),
+        html.P("A Wilcoxon signed rank test is used to compare the difference between projections parallel and "
+               "orthogonal to the theoretical UCM across participants. Because of the high variability across "
+               "participants a non-parametric test is used."),
+        dcc.Markdown(id='wilcoxon_result', children="The result indicates that the parallel projection scores were "
+                                                    "{decision}higher than the orthogonal projection scores, "
+                                                    "Z={teststat}, *p = {p:.5f}*."),
+    ])
+    return comp
 
 
 #######################
@@ -496,6 +530,12 @@ def create_content():
                                     dcc.Markdown(filter_hint)
                                     ])
     
+    anova_table = get_table_div(generate_simple_table(df, 'anova-table'), 5,
+                                "3 x (3) Two-way mixed-design ANOVA of $\\Delta V_z$ with between-factor condition "
+                                "and within-factor block",
+                                "If the between-subject groups are unbalanced (unequal sample sizes), "
+                                "a type II sums of squares will be computed (no interaction is assumed).")
+    
     # Tie widgets together to layout.
     content = html.Div([
         dcc.Store(id='datastore', storage_type='memory'),
@@ -518,12 +558,13 @@ def create_content():
                                          className='six columns')),
                            *dash_row(grab_onset_graph, grab_duration_graph),
                            *dash_row(hist_graph_dfs, hist_graph_sum),
-                           *dash_row(corr_table),
+                           #*dash_row(corr_table),  # Doesn't account for repeated measures
                            *dash_row(pca_graph, pca_table),
                            *dash_row(desc_table),
                            *dash_row(dof_line_plot, proj_line_plot),
                            *dash_row(dof_violin_plot, proj_violin_plot),
                            *dash_row(var_graph),
+                           *dash_row(anova_table, wilcoxon_rank_result()),
                            ]),
     ])
     return content

@@ -784,4 +784,33 @@ def register_callbacks(dashapp):
         fig = plotting.generate_violin_figure(df, columns=['parallel', 'orthogonal'],
                                               ytitle='Variance', legend_title="PROJECTION")
         return fig
-
+    
+    @dashapp.callback(Output('wilcoxon_result', 'children'),
+                      [Input('desc-table', 'derived_virtual_data')],
+                      [State('wilcoxon_result', 'children')])
+    def update_wilcoxon_result(data, text_template):
+        df = records_to_df(data)
+        try:
+            df.rename(columns={'parallel variance': 'parallel', 'orthogonal variance': 'orthogonal'}, inplace=True)
+            decision, w, p = analysis.wilcoxon_rank_test(df)
+            decision = (not decision) * 'not '
+        except KeyError:
+            raise PreventUpdate
+        except ValueError:
+            raise PreventUpdate
+        children = text_template.format(decision=decision, teststat=w, p=p)
+        return children
+        
+    @dashapp.callback([Output('anova-table', 'data'),
+                       Output('anova-table', 'columns')],
+                      [Input('desc-table', 'derived_virtual_data')])
+    def update_anova(data):
+        df = records_to_df(data)
+        try:
+            aov = analysis.mixed_anova_synergy_index_z(df)
+        except (KeyError, ValueError):
+            raise PreventUpdate
+        records = df_to_records(aov)
+        columns = layout.get_columns_settings(aov)
+        # ToDo: sphericity report
+        return records, columns
