@@ -608,22 +608,26 @@ def register_callbacks(dashapp):
     # Reaction times
     @dashapp.callback([Output('onset-dfs', 'figure'),
                        Output('duration-dfs', 'figure')],
-                      [Input('trials-table', 'derived_virtual_data')])
-    def set_grab_plots(table_data):
+                      [Input('trials-table', 'derived_virtual_data')],
+                      [State('trials-table', 'columns')])
+    def set_grab_plots(table_data, header):
         """ Update histograms when data in trials table changes. """
         df = records_to_df(table_data)
         try:
             onset_df = df[['user', 'condition', 'block', 'treatment', 'df1_grab', 'df2_grab']]
-            fig_onset = plotting.generate_violin_figure(onset_df.rename(columns={'df1_grab': 'df1', 'df2_grab': 'df2'}),
-                                                        ['df1', 'df2'], ytitle="Grab Onset (s)", legend_title="DOF")
-            
             duration_df = df[['user', 'condition', 'block', 'treatment', 'df1_duration', 'df2_duration']]
-            fig_duration = plotting.generate_violin_figure(duration_df.rename(columns={'df1_duration': 'df1',
-                                                                                       'df2_duration': 'df2'}),
-                                                           ['df1', 'df2'], ytitle='Grab Duration (s)',
-                                                           legend_title="DOF")
         except KeyError:
-            raise PreventUpdate
+            col_names = [c['id'] for c in header]
+            onset_df = pd.DataFrame(columns=col_names)
+            duration_df = pd.DataFrame(columns=col_names)
+            
+        fig_onset = plotting.generate_violin_figure(onset_df.rename(columns={'df1_grab': 'df1', 'df2_grab': 'df2'}),
+                                                    ['df1', 'df2'], ytitle="Grab Onset (s)", legend_title="DOF")
+        
+        fig_duration = plotting.generate_violin_figure(duration_df.rename(columns={'df1_duration': 'df1',
+                                                                                   'df2_duration': 'df2'}),
+                                                       ['df1', 'df2'], ytitle='Grab Duration (s)',
+                                                       legend_title="DOF")
         return fig_onset, fig_duration
 
     @dashapp.callback(Output('barplot-variance', 'figure'),
@@ -809,7 +813,7 @@ def register_callbacks(dashapp):
         try:
             aov = analysis.mixed_anova_synergy_index_z(df)
         except (KeyError, ValueError):
-            raise PreventUpdate
+            aov = pd.DataFrame(columns=['Source', 'SS', 'DF1', 'DF2', 'MS', 'F', 'p-unc', 'np2', 'eps'])
         records = df_to_records(aov)
         columns = layout.get_columns_settings(aov)
         # ToDo: sphericity report
