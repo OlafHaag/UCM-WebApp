@@ -471,5 +471,22 @@ def mixed_anova_synergy_index_z(dataframe):
     :return: mixed-design ANOVA results.
     :rtype: pandas.DataFrame
     """
-    aov = pg.mixed_anova(data=dataframe, dv='dVz', within='block', subject='user', between='condition')
+    aov = pg.mixed_anova(data=dataframe, dv='dVz', within='block', subject='user', between='condition', correction=True)
     return aov
+
+
+def posthoc_ttests(dataframe, var_='dVz'):
+    """ Pairwise posthoc t-tests on a variable in a mixed design. Between factor is 'condition', within factor is
+    'block'.
+    
+    :param dataframe: Aggregated data containing Fisher-z-transformed synergy index in long format.
+    :type dataframe: pandas.DataFrame
+    :param var_: The variable which to test. One of the column names in dataframe.
+    :type var_: str
+    :return: Pairwise T-tests results.
+    :rtype: pandas.DataFrame
+    """
+    posthocs = pg.pairwise_ttests(data=dataframe, dv=var_, within='block', subject='user', between='condition',
+                                  alpha=0.05,
+                                  padjust='fdr_by', marginal=True, return_desc=True, tail='one-sided', parametric=True)
+    return posthocs

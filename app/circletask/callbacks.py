@@ -818,3 +818,18 @@ def register_callbacks(dashapp):
         columns = layout.get_columns_settings(aov)
         # ToDo: sphericity report
         return records, columns
+
+    @dashapp.callback([Output('posthoc-table', 'data'),
+                       Output('posthoc-table', 'columns')],
+                      [Input('desc-table', 'derived_virtual_data')])
+    def update_posthoc(data):
+        df = records_to_df(data)
+        try:
+            posthocs = analysis.posthoc_ttests(df)
+        except (KeyError, ValueError):
+            posthocs = pd.DataFrame(columns=['Contrast', 'block', 'A', 'B', 'mean(A)', 'std(A)', 'mean(B)', 'std(B)',
+                                             'Paired', 'Parametric', 'T', 'dof', 'Tail', 'p-unc', 'p-corr', 'p-adjust',
+                                             'BF10', 'hedges'])
+        records = df_to_records(posthocs)
+        columns = layout.get_columns_settings(posthocs)
+        return records, columns

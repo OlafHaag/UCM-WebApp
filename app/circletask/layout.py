@@ -227,6 +227,8 @@ def get_columns_settings(dataframe, order=None):
             label = '$\\Delta V_z$'
         elif c == 'p-unc':
             label = 'p'
+        elif c.startswith('p-'):
+            label = c
         elif c == 'SS':
             label = 'Sum of Squares'
         elif c == 'MS':
@@ -536,6 +538,12 @@ def create_content():
                                 "If the between-subject groups are unbalanced (unequal sample sizes), "
                                 "a type II sums of squares will be computed (no interaction is assumed).")
     
+    posthoc_table = get_table_div(generate_simple_table(df, 'posthoc-table'), 6,
+                                  "Posthoc pairwise T-tests of $\\Delta V_z$",
+                                  "Only pay attention to this table if the ANOVA results merit further investigation "
+                                  "(formerly known as statistical significant results). p-corr-values are corrected "
+                                  "p-values using the Benjamini-Hochberg False Discovery Rate method.")
+    
     # Tie widgets together to layout.
     content = html.Div([
         dcc.Store(id='datastore', storage_type='memory'),
@@ -563,8 +571,8 @@ def create_content():
                            *dash_row(desc_table),
                            *dash_row(dof_line_plot, proj_line_plot),
                            *dash_row(dof_violin_plot, proj_violin_plot),
-                           *dash_row(var_graph),
-                           *dash_row(anova_table, wilcoxon_rank_result()),
+                           *dash_row(var_graph, wilcoxon_rank_result()),
+                           *dash_row(anova_table, posthoc_table),
                            ]),
     ])
     return content
