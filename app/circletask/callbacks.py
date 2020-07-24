@@ -812,7 +812,7 @@ def register_callbacks(dashapp):
         df = records_to_df(data)
         try:
             aov = analysis.mixed_anova_synergy_index_z(df)
-        except (KeyError, ValueError):
+        except (KeyError, ValueError, np.linalg.LinAlgError):
             aov = pd.DataFrame(columns=['Source', 'SS', 'DF1', 'DF2', 'MS', 'F', 'p-unc', 'np2', 'eps'])
         records = df_to_records(aov)
         columns = layout.get_columns_settings(aov)
@@ -831,5 +831,5 @@ def register_callbacks(dashapp):
                                              'Paired', 'Parametric', 'T', 'dof', 'Tail', 'p-unc', 'p-corr', 'p-adjust',
                                              'BF10', 'hedges'])
         records = df_to_records(posthocs)
-        columns = layout.get_columns_settings(posthocs)
+        columns = layout.get_columns_settings(posthocs, order=list(range(15)) + [16, 17])  # Remove correction method.
         return records, columns

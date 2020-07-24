@@ -541,7 +541,7 @@ def create_content():
     posthoc_table = get_table_div(generate_simple_table(df, 'posthoc-table'), 6,
                                   "Posthoc pairwise T-tests of $\\Delta V_z$",
                                   "Only pay attention to this table if the ANOVA results merit further investigation "
-                                  "(formerly known as statistical significant results). p-corr-values are corrected "
+                                  "(formerly known as statistical significance). The p-corr values are corrected "
                                   "p-values using the Benjamini-Hochberg False Discovery Rate method.")
     
     # Tie widgets together to layout.

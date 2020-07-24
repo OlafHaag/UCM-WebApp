@@ -471,6 +471,12 @@ def mixed_anova_synergy_index_z(dataframe):
     :return: mixed-design ANOVA results.
     :rtype: pandas.DataFrame
     """
+    if dataframe['condition'].nunique() <= 1:
+        raise ValueError("ERROR: Between factor has insufficient number of levels.")
+        #ToDo: If there's only 1 condition, run ANOVA with one within factor instead.
+    if dataframe['block'].nunique() <= 1:
+        raise ValueError("ERROR: Between factor has insufficient number of levels.")
+        #ToDo: If there's only 1 block, run ANOVA with one between factor instead.
     aov = pg.mixed_anova(data=dataframe, dv='dVz', within='block', subject='user', between='condition', correction=True)
     return aov
 
@@ -487,6 +493,6 @@ def posthoc_ttests(dataframe, var_='dVz'):
     :rtype: pandas.DataFrame
     """
     posthocs = pg.pairwise_ttests(data=dataframe, dv=var_, within='block', subject='user', between='condition',
-                                  alpha=0.05,
+                                  alpha=0.05, within_first=False,
                                   padjust='fdr_by', marginal=True, return_desc=True, tail='one-sided', parametric=True)
     return posthocs
