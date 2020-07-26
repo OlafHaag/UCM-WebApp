@@ -8,6 +8,7 @@ import pandas as pd
 import numpy as np
 from plotly import express as px, graph_objs as go, figure_factory as ff
 from plotly.subplots import make_subplots
+import scipy
 
 from . import analysis
 
@@ -24,7 +25,7 @@ theme = {'graph_margins': {'l': 40, 'b': 40, 't': 40, 'r': 10},
          'colors': px.colors.qualitative.Plotly,
          }
 
-treatment_order = pd.Series({'pre': 0, 'df1': 1, 'df2': 2, 'df1|df2': 3, 'post': 4})
+task_order = pd.Series({'pre': 0, 'df1': 1, 'df2': 2, 'df1|df2': 3, 'post': 4})
 
 
 def get_ellipse_coordinates(x_center=0, y_center=0, axis=(1, 0), a=1, b=1, n=100):
@@ -69,11 +70,11 @@ def generate_trials_figure(df, contour_data=None):
         data = []
     else:
         data = [go.Scattergl(
-            x=df[df['treatment'] == t]['df1'],
-            y=df[df['treatment'] == t]['df2'],
+            x=df[df['task'] == t]['df1'],
+            y=df[df['task'] == t]['df2'],
             text=[f"df1={j['df1']:.2f}<br />df2={j['df2']:.2f}<br />Sum={j['sum']:.2f}<br />Participant {j['user']}"
                   f"<br />Session {j['session']}<br />Block {t}<br />Trial {j['trial']}"
-                  for _, j in df[df['treatment'] == t].iterrows()],
+                  for _, j in df[df['task'] == t].iterrows()],
             hoverinfo='text',
             mode='markers',
             opacity=0.7,
@@ -81,8 +82,8 @@ def generate_trials_figure(df, contour_data=None):
                     'color': theme[t],
                     'line': {'width': 0.5, 'color': 'white'}
                     },
-            name=f"Treatment {t}",
-        ) for t in treatment_order[df['treatment'].unique()].sort_values().index]
+            name=f"Task {t}",
+        ) for t in task_order[df['task'].unique()].sort_values().index]
 
     legend = go.layout.Legend(
         xanchor='right',
@@ -155,7 +156,7 @@ def get_pca_annotations(pca_dataframe):
     arrows = list()
     # Each block displays its principal components.
     try:
-        for name, group in pca_dataframe.groupby('treatment'):
+        for name, group in pca_dataframe.groupby('task'):
             vectors = analysis.get_pca_vectors(group)  # origin->destination pairs.
             
             arrows.extend([dict(
@@ -188,7 +189,7 @@ def add_pca_ellipses(fig, pca_dataframe):
     """
     # Each block displays its principal components.
     try:
-        for name, group in pca_dataframe.groupby('treatment'):
+        for name, group in pca_dataframe.groupby('task'):
             x, y = get_ellipse_coordinates(*group[['meanx', 'meany']].iloc[0],
                                            axis=group[['x', 'y']].iloc[0],
                                            a=np.sqrt(group['var_expl'].iloc[0])*2,
@@ -277,15 +278,15 @@ def generate_pca_figure(dataframe):
     layout = dict(
         legend=legend,
         yaxis={'title': 'Explained variance in percent'},
-        xaxis={'title': 'Treatment'},
+        xaxis={'title': 'Task'},
         margin={'l': 60, 'b': 40, 't': 40, 'r': 10},
         hovermode=False,
     )
     
     try:
-        fig = px.bar(dataframe, x='treatment', y='var_expl_ratio', barmode='group', color='PC',
+        fig = px.bar(dataframe, x='task', y='var_expl_ratio', barmode='group', color='PC',
                      category_orders={
-                         'treatment': list(treatment_order[dataframe['treatment'].unique()].sort_values().index)
+                         'task': list(task_order[dataframe['task'].unique()].sort_values().index)
                      })
     except (KeyError, ValueError):
         fig = go.Figure()
@@ -317,14 +318,14 @@ def generate_means_figure(dataframe, variables=None):
                         row_titles=list(string.ascii_uppercase[:len(variables)]))  # A, B, C, ...
     # Handle empty data.
     if dataframe.empty:
-        fig.layout.update(xaxis2_title='Treatment',
+        fig.layout.update(xaxis2_title='Task',
                           margin=theme['graph_margins'],
                           )
         # Empty dummy traces.
         for i, v in enumerate(variables):
             fig.add_trace({}, row=i+1, col=1)
             fig.update_yaxes(title_text=v['label'], hoverformat='.2f', row=i+1, col=1)
-        fig.update_xaxes(tickvals=treatment_order.values, ticktext=treatment_order.index,
+        fig.update_xaxes(tickvals=task_order.values, ticktext=task_order.index,
                          row=len(variables), col=1)
         return fig
     
@@ -334,11 +335,11 @@ def generate_means_figure(dataframe, variables=None):
     for i, v in enumerate(variables):
         for name, group in grouped:
             fig.add_trace(go.Bar(
-                x=group['treatment'].map(treatment_order),
+                x=group['task'].map(task_order),
                 y=group[v['var']],
                 name=f'Participant {name}',
                 showlegend=False,
-                marker={'color': group['treatment'].map(theme),
+                marker={'color': group['task'].map(theme),
                         'opacity': 0.5},
                 hovertemplate="%{text}: %{y:.2f}",
                 text=[v['label']] * len(group),
@@ -347,24 +348,24 @@ def generate_means_figure(dataframe, variables=None):
             )
     
         # Add mean across participants by block
-        means = analysis.get_mean(dataframe, column=v['var'], by='treatment')
-        for treatment, value in means.iteritems():
+        means = analysis.get_mean(dataframe, column=v['var'], by='task')
+        for task, value in means.iteritems():
             fig.add_trace(go.Scattergl(
-                x=[treatment_order[treatment] - 0.5, treatment_order[treatment], treatment_order[treatment] + 0.5],
+                x=[task_order[task] - 0.5, task_order[task], task_order[task] + 0.5],
                 y=[value, value, value],
-                name=f"Treatment {treatment}",
+                name=f"Task {task}",
                 showlegend=(not i),  # Show legend only for first trace to prevent duplicates.
-                hovertext=f'Treatment {treatment}',
+                hovertext=f'Task {task}',
                 hoverinfo='y',
                 textposition='top center',
                 mode='lines',
-                marker={'color': theme[treatment]},
+                marker={'color': theme[task]},
                 hovertemplate=f"Mean {v['label']}: {value:.2f}",
             ), row=i+1, col=1)
         fig.update_yaxes(title_text=v['label'], hoverformat='.2f', row=i+1, col=1)
-    fig.update_xaxes(tickvals=treatment_order[dataframe['treatment'].unique()],
-                     ticktext=treatment_order[dataframe['treatment'].unique()].index,
-                     title_text="Treatment", row=len(variables), col=1)
+    fig.update_xaxes(tickvals=task_order[dataframe['task'].unique()],
+                     ticktext=task_order[dataframe['task'].unique()].index,
+                     title_text="Task", row=len(variables), col=1)
 
     # Layout
     legend = go.layout.Legend(
@@ -409,7 +410,7 @@ def generate_violin_figure(dataframe, columns, ytitle, legend_title=None):
     )
     
     fig = go.Figure()
-    fig.layout.update(xaxis_title='Treatment',
+    fig.layout.update(xaxis_title='Task',
                       yaxis_title=ytitle,
                       legend=legend,
                       margin=theme['graph_margins'])
@@ -419,10 +420,10 @@ def generate_violin_figure(dataframe, columns, ytitle, legend_title=None):
     # Make sure we plot only 2 columns, left and right.
     columns = columns[:2]
     sides = ('negative', 'positive')
-    grouped = dataframe.groupby('treatment')
+    grouped = dataframe.groupby('task')
     for name, group_df in grouped:
         for i, col in enumerate(columns):
-            fig.add_trace(go.Violin(x=group_df['treatment'].map(treatment_order),
+            fig.add_trace(go.Violin(x=group_df['task'].map(task_order),
                                     y=group_df[col],
                                     legendgroup=col, scalegroup=col, name=col,
                                     side=sides[i],
@@ -433,7 +434,7 @@ def generate_violin_figure(dataframe, columns, ytitle, legend_title=None):
                                           for _, j in group_df.iterrows()],
                                     hoverinfo='y+text',
                                     spanmode='hard',
-                                    showlegend=bool(name == dataframe['treatment'].unique()[0]),  # Only 1 legend.
+                                    showlegend=bool(name == dataframe['task'].unique()[0]),  # Only 1 legend.
                                     )
                           )
     
@@ -445,8 +446,8 @@ def generate_violin_figure(dataframe, columns, ytitle, legend_title=None):
                       scalemode='count')  # Scale violin plot area with total count.
 
     fig.update_layout(violingap=0, violingroupgap=0, violinmode='overlay', hovermode='closest')
-    fig.update_xaxes(tickvals=treatment_order[dataframe['treatment'].unique()],
-                     ticktext=treatment_order[dataframe['treatment'].unique()].index)
+    fig.update_xaxes(tickvals=task_order[dataframe['task'].unique()],
+                     ticktext=task_order[dataframe['task'].unique()].index)
     fig.update_yaxes(zeroline=True, zerolinewidth=2, zerolinecolor='LightPink')
     return fig
 
@@ -507,13 +508,13 @@ def generate_lines_plot(dataframe, y_var, errors=None, by='user', facets='condit
                       errors: ':.3f',
                       'participant': (True, dataframe['user'].values),
                       'block_': (True, dataframe['block'].values),
-                      'treatment_': (True, dataframe['treatment'].values),
+                      'task_': (True, dataframe['task'].values),
                       'x': False}
         if errors is None:
             del hover_data[errors]
         fig = px.line(data_frame=dataframe, x='x', y=y_var, error_y=errors,
                       line_group=by, facet_col=facets, facet_col_wrap=0, color=color_col, color_discrete_map=theme,
-                      hover_data=hover_data, labels={'block_': 'block', 'treatment_': 'treatment'},
+                      hover_data=hover_data, labels={'block_': 'block', 'task_': 'task'},
                       range_x=x_range,
                       render_mode='webgl')
         fig.update_xaxes(title="Block", tickvals=dataframe['block'].unique())
@@ -530,4 +531,57 @@ def generate_lines_plot(dataframe, y_var, errors=None, by='user', facets='condit
     fig.layout.update(yaxis_title=y_var.capitalize(),
                       legend=legend,
                       margin=theme['graph_margins'])
+    return fig
+
+
+def generate_qq_plot(dataframe, vars_, dist='norm'):
+    """ Plotting sample distribution quantiles against theoretical quantiles.
+    
+    :param dataframe:
+    :type dataframe: pandas.DataFrame
+    :param vars_: Which column's or columns' distribution to to plot against theoretical distribution.
+    :type vars_: str|list
+    :param dist: Which theoretical distribution to compare to.
+    :return: Figure object of graph.
+    :rtype: plotly.graph_objs.Figure
+    """
+    legend = go.layout.Legend(
+        xanchor='right',
+        yanchor='top',
+        orientation='v',
+        title="Distribution",
+    )
+    if isinstance(vars_, str):
+        vars_ = [vars_]
+        
+    try:
+        fig = make_subplots(cols=dataframe['task'].nunique(), rows=1,
+                            x_title="Theoretical Quantiles", y_title="Standardized Residuals",
+                            shared_yaxes=True,
+                            horizontal_spacing=0.04,
+                            column_titles=task_order[dataframe['task'].unique()].sort_values().index.to_list())
+    except (KeyError, ValueError) as e:
+        fig = go.Figure()
+    else:
+        # Subplots for conditions.
+        grouped = dataframe.groupby('task')
+        col_order = pd.Series(np.arange(dataframe['task'].nunique())+1,
+                              index=task_order[dataframe['task'].unique()].sort_values().index)
+        show_legend = True
+        for name, df in grouped:
+            z_scores = pd.DataFrame(scipy.stats.zscore(df[vars_], axis=0, ddof=0), columns=vars_)
+            for var_ in vars_:
+                theoretical_qs = scipy.stats.probplot(z_scores[var_], dist=dist)
+                x = np.array([theoretical_qs[0][0][0], theoretical_qs[0][0][-1]])
+            
+                fig.add_scattergl(x=theoretical_qs[0][0], y=theoretical_qs[0][1], showlegend=show_legend,
+                                  mode='markers', name=var_, marker_color=theme[var_], opacity=0.7,
+                                  row=1, col=col_order[name])
+                fig.add_scattergl(x=x, y=theoretical_qs[1][1] + theoretical_qs[1][0] * x, mode='lines',
+                                  showlegend=False, marker_color=theme[var_], row=1, col=col_order[name])
+            show_legend = False
+        
+    fig.layout.update(legend=legend,
+                      hovermode=False,
+                      margin={'l': 60, 'b': 60, 't': 40, 'r': 40})
     return fig

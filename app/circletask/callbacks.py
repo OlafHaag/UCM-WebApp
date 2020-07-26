@@ -217,7 +217,7 @@ def get_blocks_df(csv_file, session_uid, user_id):
         raise UploadError("ERROR: Failed to read file contents for session.")
     try:
         # Convert time_iso string to datetime.
-        blocks_df['time_iso'] = blocks_df['time_iso'].apply(lambda t: datetime.strptime(t, time_fmt))
+        blocks_df['time_iso'] = blocks_df['time_iso'].transform(lambda t: datetime.strptime(t, time_fmt))
         blocks_df['user_id'] = user_id
         # Rename 'block' column to CircleTaskBlock model compatible 'nth_block'
         blocks_df.rename(columns={'block': 'nth_block'}, inplace=True)
@@ -516,8 +516,8 @@ def register_callbacks(dashapp):
             # Return all the rows on initial load/no user selected.
             return df_to_records(df), columns, z.tolist()
         try:
-            df[['user', 'block', 'condition', 'treatment', 'outlier']] = df[['user', 'block', 'condition', 'treatment',
-                                                                             'outlier']].astype('category')
+            df[['user', 'block', 'condition', 'task', 'outlier']] = df[['user', 'block', 'condition', 'task',
+                                                                        'outlier']].astype('category')
         except KeyError:
             pass
         filtered = df.query('`user` in @users_selected')
@@ -555,8 +555,7 @@ def register_callbacks(dashapp):
         """ Update the graph for displaying trial data as scatter plot. """
         df = records_to_df(table_data)
         try:
-            df[['user', 'condition', 'block', 'treatment']] = df[['user', 'condition', 'block',
-                                                                  'treatment']].astype('category')
+            df[['user', 'condition', 'block', 'task']] = df[['user', 'condition', 'block', 'task']].astype('category')
         except KeyError:
             pass
         z = np.array(contour)
@@ -580,11 +579,25 @@ def register_callbacks(dashapp):
         df = records_to_df(table_data)
         try:
             fig_dfs = plotting.generate_histograms(df[['df1', 'df2']], legend_title="DOF")
-            fig_sum = plotting.generate_histograms(df[['treatment', 'sum']], by='treatment', legend_title="Block Type")
+            fig_sum = plotting.generate_histograms(df[['task', 'sum']], by='task', legend_title="Block Type")
         except KeyError:
             fig = plotting.generate_histograms(pd.DataFrame())
             return fig, fig
         return fig_dfs, fig_sum
+
+    @dashapp.callback([Output('qq-plot-dfs', 'figure'),
+                       Output('qq-plot-sum', 'figure')],
+                      [Input('trials-table', 'derived_virtual_data')])
+    def set_qqplots(table_data):
+        """ QQ-plots of degrees of freedom and of sum. """
+        df = records_to_df(table_data)
+        try:
+            fig_df = plotting.generate_qq_plot(df, vars_=['df1', 'df2'])
+            fig_sum = plotting.generate_qq_plot(df, vars_=['sum'])
+        except KeyError:
+            fig = plotting.generate_qq_plot(pd.DataFrame(columns=['task']), vars_=[])
+            return fig, fig
+        return fig_df, fig_sum
 
     @dashapp.callback([Output('corr-table', 'data'),
                        Output('corr-table', 'columns')],
@@ -614,8 +627,8 @@ def register_callbacks(dashapp):
         """ Update histograms when data in trials table changes. """
         df = records_to_df(table_data)
         try:
-            onset_df = df[['user', 'condition', 'block', 'treatment', 'df1_grab', 'df2_grab']]
-            duration_df = df[['user', 'condition', 'block', 'treatment', 'df1_duration', 'df2_duration']]
+            onset_df = df[['user', 'condition', 'block', 'task', 'df1_grab', 'df2_grab']]
+            duration_df = df[['user', 'condition', 'block', 'task', 'df1_duration', 'df2_duration']]
         except KeyError:
             col_names = [c['id'] for c in header]
             onset_df = pd.DataFrame(columns=col_names)
@@ -646,16 +659,15 @@ def register_callbacks(dashapp):
         """ Save results of PCA into a store. """
         df = records_to_df(table_data, columns=table_columns)
         try:
-            df[['user', 'condition', 'block', 'treatment']] = df[['user', 'condition',
-                                                                  'block', 'treatment']].astype('category')
-            pca_df = df.groupby('treatment').apply(analysis.get_pca_data)
+            df[['user', 'condition', 'block', 'task']] = df[['user', 'condition', 'block', 'task']].astype('category')
+            pca_df = df.groupby('task').apply(analysis.get_pca_data)
         except KeyError:
             pca_df = pd.DataFrame()
         else:
             pca_df.reset_index(inplace=True)
     
         if pca_df.empty:
-            pca_df = pd.DataFrame(None, columns=['treatment', 'PC', 'var_expl', 'var_expl_ratio',
+            pca_df = pd.DataFrame(None, columns=['task', 'PC', 'var_expl', 'var_expl_ratio',
                                                  'x', 'y', 'meanx', 'meany'])
         return df_to_records(pca_df)
 
@@ -665,7 +677,7 @@ def register_callbacks(dashapp):
         """ Update bar-plot showing explained variance per principal component. """
         df = records_to_df(pca_data)
         try:
-            df[['treatment', 'PC']] = df[['treatment', 'PC']].astype('category')
+            df[['task', 'PC']] = df[['task', 'PC']].astype('category')
         except KeyError:
             pass
         fig = plotting.generate_pca_figure(df)
@@ -678,11 +690,11 @@ def register_callbacks(dashapp):
         """ Update table for showing divergence between principal components and UCM vectors. """
         pca_df = records_to_df(pca_data)
         if pca_df.empty:
-            angle_df = pd.DataFrame(None, columns=['treatment', 'PC', 'parallel', 'orthogonal'])
+            angle_df = pd.DataFrame(None, columns=['task', 'PC', 'parallel', 'orthogonal'])
         else:
             ucm_vec = analysis.get_ucm_vec()
-            angle_df = pca_df.groupby('treatment').apply(analysis.get_pc_ucm_angles, ucm_vec)
-            angle_df.reset_index(level='treatment', inplace=True)
+            angle_df = pca_df.groupby('task').apply(analysis.get_pc_ucm_angles, ucm_vec)
+            angle_df.reset_index(level='task', inplace=True)
         columns = layout.get_pca_columns_settings(angle_df)
         return df_to_records(angle_df), columns
     
@@ -696,11 +708,10 @@ def register_callbacks(dashapp):
         ucm_vec = analysis.get_ucm_vec()
         df = records_to_df(table_data, columns=table_columns)
         try:
-            df[['user', 'session', 'condition', 'block', 'treatment']] = df[['user', 'session', 'block', 'condition',
-                                                                             'treatment']].astype('category')
+            df[['user', 'session', 'condition', 'block', 'task']] = df[['user', 'session', 'block', 'condition',
+                                                                        'task']].astype('category')
             # We compute the projections based on user & per block!
-            df_proj = df.groupby(['user', 'session', 'treatment'])[['df1', 'df2']].apply(analysis.get_projections,
-                                                                                         ucm_vec)
+            df_proj = df.groupby(['user', 'session', 'task'])[['df1', 'df2']].apply(analysis.get_projections, ucm_vec)
         except KeyError:
             df_proj = pd.DataFrame()
             
@@ -738,7 +749,7 @@ def register_callbacks(dashapp):
         df = records_to_df(data)
         try:
             # For error bars we need standard deviation.
-            df[['df1 std', 'df2 std']] = df[['df1 variance', 'df2 variance']].apply(np.sqrt)
+            df[['df1 std', 'df2 std']] = df[['df1 variance', 'df2 variance']].transform(np.sqrt)
         except KeyError:
             pass
         # Convert to long format for easier plotting.
@@ -762,8 +773,7 @@ def register_callbacks(dashapp):
         """ Update violin-plot for showing means of degrees of freedom per block. """
         df = records_to_df(data)
         try:
-            df[['user', 'condition', 'block', 'treatment']] = df[['user', 'condition',
-                                                                  'block', 'treatment']].astype('category')
+            df[['user', 'condition', 'block', 'task']] = df[['user', 'condition', 'block', 'task']].astype('category')
         except KeyError:
             col_names = [c['id'] for c in header]
             df = pd.DataFrame(columns=col_names)
@@ -778,8 +788,7 @@ def register_callbacks(dashapp):
         """ Update projection violin-plot showing variances per block. """
         df = records_to_df(data)
         try:
-            df[['user', 'condition', 'block', 'treatment']] = df[['user', 'condition',
-                                                                  'block', 'treatment']].astype('category')
+            df[['user', 'condition', 'block', 'task']] = df[['user', 'condition', 'block', 'task']].astype('category')
         except KeyError:
             col_names = [c['id'] for c in header]
             df = pd.DataFrame(columns=col_names)

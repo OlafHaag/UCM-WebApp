@@ -31,13 +31,13 @@ def join_data(users, blocks, trials):
     df['condition'] = trials['block_id'].map(blocks[['session_uid', 'treatment']].replace(
         {'treatment': {'': np.nan}}).groupby('session_uid')['treatment'].ffill().bfill()).astype('category')
     df['block'] = trials['block_id'].map(blocks['nth_block']).astype('category')
-    df['treatment'] = trials['block_id'].map(blocks.treatment.where(blocks.treatment != '',
-                                                                    blocks.nth_block.map({1: 'pre', 3: 'post'}))
-                                             ).astype('category')
-    # Add pre-treatment and post-treatment labels to trials for each block.
+    # Add pre and post labels to trials for each block. Name it task instead of treatment.
     # Theoretically, one could have changed number of blocks and order of treatment, but we assume default order here.
-    #df['treatment'] = trials['block_id'].map(blocks.treatment.replace(to_replace={r'\w+': 1, r'^\s*$': 0},
-    #                                                                  regex=True)).astype('category')
+    df['task'] = trials['block_id'].map(blocks['treatment'].where(blocks['treatment'] != '',
+                                                                  blocks.nth_block.map({1: 'pre', 3: 'post'}))
+                                        ).astype('category')
+    #df['task'] = trials['block_id'].map(blocks['treatment'].replace(to_replace={r'\w+': 1, r'^\s*$': 0}, regex=True)
+    #                                   ).astype('category')
     df['constraint'] = trials['block_id'].map(blocks['treatment']).astype('category')  # Obsolete.
     
     df = pd.concat((df, trials), axis='columns')
@@ -384,7 +384,7 @@ def get_statistics(df_trials, df_proj):
     :return: Descriptive statistics and synergy indices.
     :rtype: pandas.DataFrame
     """
-    groupers = ['user', 'session', 'condition', 'block', 'treatment']
+    groupers = ['user', 'session', 'condition', 'block', 'task']
     try:
         # Get only those trials we have the projections for, in the same order.
         df_trials = df_trials.iloc[df_proj.index]
@@ -430,7 +430,7 @@ def wilcoxon_rank_test(data):
 def wide_to_long(df, stubs, suffixes, j):
     """ Transforms a dataframe to long format, where the stubs are melted into a single column with name j and suffixes
     into value columns. Filters for all columns that are a stubs+suffixes combination.
-    Keeps 'user', 'treatment' as id_vars. When an error is encountered an emtpy dataframe is returned.
+    Keeps 'user', 'task' as id_vars. When an error is encountered an emtpy dataframe is returned.
     
     :param df: Data in wide/mixed format.
     :type df: pandas.DataFrame
@@ -450,16 +450,15 @@ def wide_to_long(df, stubs, suffixes, j):
     val_cols = [" ".join(x) for x in itertools.product(stubs, suffixes)]
     try:
         # Filter for data we want to plot.
-        df = df[['user', 'condition', 'block', 'treatment', *val_cols]]
+        df = df[['user', 'condition', 'block', 'task', *val_cols]]
         # Reverse stub and suffix for long format. We want the measurements as columns, not the categories.
         df.columns = [" ".join(x.split(" ")[::-1]) for x in df.columns]
-        long_df = pd.wide_to_long(df=df, stubnames=suffixes, i=['user', 'condition', 'block', 'treatment'],
+        long_df = pd.wide_to_long(df=df, stubnames=suffixes, i=['user', 'condition', 'block', 'task'],
                                   j=j, sep=" ", suffix=f'(!?{"|".join(stubs)})')
         long_df.reset_index(inplace=True)
     except (KeyError, ValueError):
-        long_df = pd.DataFrame(columns=['user', 'condition', 'block', 'treatment', j, *suffixes])
-    long_df[['user', 'condition', 'block', 'treatment']] = long_df[['user', 'condition',
-                                                                    'block', 'treatment']].astype('category')
+        long_df = pd.DataFrame(columns=['user', 'condition', 'block', 'task', j, *suffixes])
+    long_df[['user', 'condition', 'block', 'task']] = long_df[['user', 'condition', 'block', 'task']].astype('category')
     return long_df
 
 

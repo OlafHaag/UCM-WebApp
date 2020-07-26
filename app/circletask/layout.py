@@ -263,7 +263,7 @@ def get_pca_columns_settings(dataframe):
     columns = list()
     for c in dataframe.columns:
         if dataframe[c].dtype == 'float':
-            columns.append({'name': c,
+            columns.append({'name': c.capitalize(),
                             'id': c,
                             'type': 'numeric',
                             'format': Format(nully='N/A',
@@ -272,7 +272,8 @@ def get_pca_columns_settings(dataframe):
                                              symbol=Symbol.yes,
                                              symbol_suffix=u'˚')})
         else:
-            columns.append({'name': c, 'id': c, 'type': table_type(dataframe[c])})
+            label = c.capitalize() if c != 'PC' else c
+            columns.append({'name': label, 'id': c, 'type': table_type(dataframe[c])})
     return columns
 
 
@@ -315,8 +316,8 @@ def generate_table(dataframe, table_id):
              'width': '8%'},
             {'if': {'column_id': 'block'},
              'width': '5%'},
-            {'if': {'column_id': 'treatment'},
-             'width': '8%'},
+            {'if': {'column_id': 'task'},
+             'width': '5%'},
             {'if': {'column_id': 'outlier'},
              'width': '5.5%'},
             # 'display': 'none',
@@ -469,23 +470,32 @@ def create_content():
     grab_duration_graph = get_figure_div(dcc.Graph(id='duration-dfs'), 5,
                                          "Duration of sliders for df1 and df2 being grabbed.")
     
-    hist_graph_dfs = get_figure_div(dcc.Graph(id='histogram-dfs'), 6, "Histograms of final state values for df1 and "
+    qq_plot_dfs = get_figure_div(dcc.Graph(id='qq-plot-dfs', style={'height': theme['height']}), 6,
+                                 "QQ-plots for comparing final states distribution of degrees of freedom to normal "
+                                 "distributions. "
+                                 "The Filliben’s formula was used to estimate the theoretical quantiles.")
+
+    qq_plot_sum = get_figure_div(dcc.Graph(id='qq-plot-sum', style={'height': theme['height']}), 7,
+                                 "QQ-plots for comparing the distribution of the sum of final states to a normal "
+                                 "distribution. The Filliben’s formula was used to estimate the theoretical quantiles.")
+    
+    hist_graph_dfs = get_figure_div(dcc.Graph(id='histogram-dfs'), 8, "Histograms of final state values for df1 and "
                                                                       "df2 compared to normal distributions.")
     
-    hist_graph_sum = get_figure_div(dcc.Graph(id='histogram-sum'), 7, "Histogram of the sum of df1 and df2 "
+    hist_graph_sum = get_figure_div(dcc.Graph(id='histogram-sum'), 9, "Histogram of the sum of df1 and df2 "
                                                                       "compared to a normal distribution.")
     
-    dof_line_plot = get_figure_div(dcc.Graph(id='df-line-plot'), 10, "Mean final state values per degree of freedom "
+    dof_line_plot = get_figure_div(dcc.Graph(id='df-line-plot'), 11, "Mean final state values per degree of freedom "
                                                                      "and participant. Vertical bars represent "
                                                                      "standard deviations.")
 
-    dof_violin_plot = get_figure_div(dcc.Graph(id='df-violin-plot'), 12, "Mean final state values per degree of "
-                                                                         "freedom and block across participants.")
-    
-    proj_line_plot = get_figure_div(dcc.Graph(id='proj-line-plot'), 11, "Projection variance per direction to UCM for "
+    proj_line_plot = get_figure_div(dcc.Graph(id='proj-line-plot'), 12, "Projection variance per direction to UCM for "
                                                                         "each participant.")
 
-    proj_violin_plot = get_figure_div(dcc.Graph(id='proj-violin-plot'), 13, "Variance of projections onto subspace "
+    dof_violin_plot = get_figure_div(dcc.Graph(id='df-violin-plot'), 13, "Mean final state values per degree of "
+                                                                         "freedom and block across participants.")
+    
+    proj_violin_plot = get_figure_div(dcc.Graph(id='proj-violin-plot'), 14, "Variance of projections onto subspace "
                                                                             "parallel and orthogonal to UCM across "
                                                                             "participants.")
     
@@ -495,17 +505,16 @@ def create_content():
                                "r(sum,df1) > 0, r(sum, df2)>0, r(df1,df2)<0."
                                )
     
-    # ToDo: histogram of residuals
     pca_graph = get_figure_div(dcc.Graph(id='barplot-pca'),
-                               8, "Explained variance by different principal components in percent.")
+                               10, "Explained variance by different principal components (PC) in percent.")
     pca_graph.style = {'marginTop': '70px'}  # Match it to the table y position next to it.
     
     pca_table = get_table_div(generate_simple_table(df, 'pca-table'), 3,
-                              "Divergence between principal components "
+                              "Divergence between principal components (PC) "
                               "and the space parallel or orthogonal to the theoretical UCM"
                               )
     
-    var_graph = get_figure_div(dcc.Graph(id='barplot-variance', style={'height': theme['height']}), 9,
+    var_graph = get_figure_div(dcc.Graph(id='barplot-variance', style={'height': theme['height']}), 15,
                                "**A** Variance of the sum of df1 and df2 grouped by block and participant. **B** "
                                "Mean of the sum of df1 and df2.")
     
@@ -565,6 +574,7 @@ def create_content():
                                          html.P(id='filtered-hint', style={'display': 'inline'})],
                                          className='six columns')),
                            *dash_row(grab_onset_graph, grab_duration_graph),
+                           *dash_row(qq_plot_dfs, qq_plot_sum),
                            *dash_row(hist_graph_dfs, hist_graph_sum),
                            #*dash_row(corr_table),  # Doesn't account for repeated measures
                            *dash_row(pca_graph, pca_table),
