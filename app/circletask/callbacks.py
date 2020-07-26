@@ -743,7 +743,7 @@ def register_callbacks(dashapp):
             pass
         # Convert to long format for easier plotting.
         long_df = analysis.wide_to_long(df, stubs=['df1', 'df2'], suffixes=['mean', 'std'], j='dof')
-        fig = plotting.generate_lines_plot(long_df, "mean", by='user', color_col='dof', errors='std')
+        fig = plotting.generate_lines_plot(long_df, "mean", by='user', color_col='dof', errors='std', jitter=True)
         return fig
 
     @dashapp.callback(Output('proj-line-plot', 'figure'),
@@ -826,7 +826,7 @@ def register_callbacks(dashapp):
         df = records_to_df(data)
         try:
             posthocs = analysis.posthoc_ttests(df)
-        except (KeyError, ValueError):
+        except (KeyError, ValueError, AssertionError):
             posthocs = pd.DataFrame(columns=['Contrast', 'block', 'A', 'B', 'mean(A)', 'std(A)', 'mean(B)', 'std(B)',
                                              'Paired', 'Parametric', 'T', 'dof', 'Tail', 'p-unc', 'p-corr', 'p-adjust',
                                              'BF10', 'hedges'])

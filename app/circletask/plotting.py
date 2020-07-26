@@ -1,6 +1,7 @@
 """
 This module contains functions for creating figures.
 """
+import itertools
 import string
 
 import pandas as pd
@@ -450,7 +451,7 @@ def generate_violin_figure(dataframe, columns, ytitle, legend_title=None):
     return fig
 
 
-def generate_lines_plot(dataframe, y_var, errors=None, by='user', facets='condition', color_col=None):
+def generate_lines_plot(dataframe, y_var, errors=None, by='user', facets='condition', color_col=None, jitter=False):
     """ Intended for use with either df1/df2 or parallel/orthogonal.
     
     :param dataframe: Values to plot
@@ -464,6 +465,9 @@ def generate_lines_plot(dataframe, y_var, errors=None, by='user', facets='condit
     :param facets: Separate into several subplots by this variable.
     :type facets: str
     :param color_col: Column containing keys for colors from theme.
+    :type color_col: str
+    :param jitter: Make some horizontal space between line plots.
+    :type jitter: bool
 
     :return: Figure object of graph.
     :rtype: plotly.graph_objs.Figure
@@ -475,16 +479,45 @@ def generate_lines_plot(dataframe, y_var, errors=None, by='user', facets='condit
         title=color_col.upper(),
     )
     
-    hover_data = ['block', 'treatment', y_var, errors, by] if errors else ['block', 'treatment', y_var, by]
     try:
-        x_range = [dataframe['block'].unique().astype(float).min() - 0.5, dataframe['block'].unique().astype(float).max() + 0.5]
+        x_range = [dataframe['block'].unique().astype(float).min() - 0.5,
+                   dataframe['block'].unique().astype(float).max() + 0.5]
         
-        fig = px.line(data_frame=dataframe, x='block', y=y_var, error_y=errors,
+        # When all error bars overlap they just clutter the graph without being able to distinguish them.
+        # Therefore, introduce some jitter in the x-direction. Isn't perfect, but must suffice for now.
+        if jitter:
+            # Separate the colored groups.
+            i = itertools.count(1)  # Counter for current group.
+            d = 0.4  # Spread to the left and right of each block.
+            s = d / (dataframe[color_col].nunique() + 1)  # Incremental distance for each group from the min (block -d).
+            n_groups = dataframe[color_col].nunique()
+            dataframe['x'] = dataframe['block'].astype(float) \
+                + s * dataframe.groupby(color_col)['block'].transform(lambda _: -n_groups - 2 + 2 * next(i))
+            # Now spread the users apart a bit within each group.
+            by_idx = pd.Series(np.arange(dataframe.user.nunique())+1, index=dataframe.user.unique())
+            try:
+                dataframe['x'] += s * (1 + dataframe[by].astype(int).map(by_idx)) / dataframe[by].nunique()
+            except ValueError:  # Division by 0.
+                dataframe['x'] = dataframe['block']
+        else:
+            dataframe['x'] = dataframe['block']
+
+        hover_data = {by: False,
+                      y_var: ':.3f',
+                      errors: ':.3f',
+                      'participant': (True, dataframe['user'].values),
+                      'block_': (True, dataframe['block'].values),
+                      'treatment_': (True, dataframe['treatment'].values),
+                      'x': False}
+        if errors is None:
+            del hover_data[errors]
+        fig = px.line(data_frame=dataframe, x='x', y=y_var, error_y=errors,
                       line_group=by, facet_col=facets, facet_col_wrap=0, color=color_col, color_discrete_map=theme,
-                      hover_data=hover_data, range_x=x_range,
+                      hover_data=hover_data, labels={'block_': 'block', 'treatment_': 'treatment'},
+                      range_x=x_range,
                       render_mode='webgl')
-        fig.update_xaxes(tickvals=dataframe['block'].unique())
-    except (KeyError, ValueError):
+        fig.update_xaxes(title="Block", tickvals=dataframe['block'].unique())
+    except (KeyError, ValueError) as e:
         fig = go.Figure()
     
     # We have a variable number of subplots. Capitalize all x-axis titles.
