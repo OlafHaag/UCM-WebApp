@@ -101,7 +101,7 @@ def generate_trials_figure(df, contour_data=None):
         )
     )
     # Task goal 1 visualization.
-    fig.add_trace(go.Scatter(
+    fig.add_trace(go.Scattergl(
         x=[25, 100],
         y=[100, 25],
         mode='lines',
@@ -111,7 +111,7 @@ def generate_trials_figure(df, contour_data=None):
         hovertemplate="df1+df2=125",
     ))
     # Task goal 2 (DoF constrained) visualization.
-    fig.add_scatter(y=[62.5], x=[62.5],
+    fig.add_scattergl(y=[62.5], x=[62.5],
                     name="task goal 2",
                     text=["task goal 2 (df1=df2)"],
                     hoverinfo='text',
@@ -194,13 +194,13 @@ def add_pca_ellipses(fig, pca_dataframe):
                                            a=np.sqrt(group['var_expl'].iloc[0])*2,
                                            b=np.sqrt(group['var_expl'].iloc[1])*2,
                                            )
-            fig.add_scatter(x=x,
-                            y=y,
-                            mode='lines',
-                            line_color=theme[name],
-                            showlegend=False,
-                            hoverinfo='skip',
-                            )
+            fig.add_scattergl(x=x,
+                              y=y,
+                              mode='lines',
+                              line_color=theme[name],
+                              showlegend=False,
+                              hoverinfo='skip',
+                              )
     except (KeyError, IndexError):
         pass
 
@@ -349,7 +349,7 @@ def generate_means_figure(dataframe, variables=None):
         # Add mean across participants by block
         means = analysis.get_mean(dataframe, column=v['var'], by='treatment')
         for treatment, value in means.iteritems():
-            fig.add_trace(go.Scatter(
+            fig.add_trace(go.Scattergl(
                 x=[treatment_order[treatment] - 0.5, treatment_order[treatment], treatment_order[treatment] + 0.5],
                 y=[value, value, value],
                 name=f"Treatment {treatment}",
