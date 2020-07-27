@@ -500,7 +500,7 @@ def create_content():
                                                                             "participants.")
     
     corr_table = get_table_div(generate_simple_table(df, 'corr-table'), 2,
-                               "Pairwise Pearson correlation coefficients",
+                               "Pairwise Spearman correlation coefficients",
                                "There is a reciprocal suppression when: "
                                "r(sum,df1) > 0, r(sum, df2)>0, r(df1,df2)<0."
                                )

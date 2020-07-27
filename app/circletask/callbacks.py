@@ -607,7 +607,9 @@ def register_callbacks(dashapp):
         df = records_to_df(table_data)
         correlates = ['df1', 'df2', 'sum']
         try:
-            corr = df[correlates].corr()
+            # We suspect the data to not be normally distributed or have outliers.
+            # A Spearman correlation is then more appropriate.
+            corr = df[correlates].corr(menthod='spearman')
         except KeyError:
             corr = pd.DataFrame(columns=correlates, index=correlates)
         if df.empty:
