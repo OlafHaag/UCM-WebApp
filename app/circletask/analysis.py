@@ -462,6 +462,32 @@ def wide_to_long(df, stubs, suffixes, j):
     return long_df
 
 
+def normality_test(df, columns, multivariate=False):
+    """ Tests whether there is considerable deviation from a normal distribution.
+    If no deviation could be detected, we don't know much about the distribution.
+    Independent normality tests use the Shapiro-Wilk method. Multivariate tests use the Henze-Zirkler multivariate
+    normality test.
+    
+    :param df: Aggregated data containing Fisher-z-transformed synergy index.
+    :type df: pandas.DataFrame
+    :param columns: Which columns to test for normality deviation.
+    :type columns: list[str]
+    :param multivariate: Do multivariate normality testing?
+    :type multivariate: bool
+    :return: Normality test results.
+    :rtype: pandas.DataFrame
+    """
+    if multivariate:
+        # Multivariate testing.
+        is_normal, p = df.groupby(['user', 'block'])[columns].apply(pg.multivariate_normality)
+        res = df.groupby(['user', 'block'])[['df1', 'df2']].apply(pg.multivariate_normality).apply(pd.Series)\
+            .rename(columns={0: 'normal', 1: 'p'})
+    else:
+        # We would want to minimize type II error rate, risk of not rejecting the null when it's false.
+        res = df.groupby(['user', 'block'])[columns].apply(pg.normality).unstack(level=2)  # Shapiro-Wilk tests.
+    return res
+
+
 def mixed_anova_synergy_index_z(dataframe):
     """ 3 x (3) Two-way split-plot ANOVA with between-factor condition and within-factor block.
     
