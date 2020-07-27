@@ -598,10 +598,13 @@ def create_footer():
         
     dash_link = get_footer_link("Built with", 'https://github.com/plotly/dash', "Plotly Dash")
     src_link = get_footer_link("Source Code on", 'https://github.com/OlafHaag/UCM-WebApp/', "GitHub")
-    app_link = get_footer_link("Data acquired with", 'https://github.com/OlafHaag/NeuroPsyResearchApp', "NeuroPsy Research App")
+    app_link = get_footer_link("Data acquired with", 'https://github.com/OlafHaag/NeuroPsyResearchApp',
+                               "NeuroPsy Research App")
+    data_license_link = get_footer_link("Data published under", 'https://creativecommons.org/licenses/by-sa/3.0/',
+                                        "CC-BY-SA license")
     
     footer_style = {'background-color': theme['background-color'], 'padding': '0.5rem'}
-    footer = html.Footer(children=[dash_link, src_link, app_link], style=footer_style)
+    footer = html.Footer(children=[dash_link, src_link, app_link, data_license_link], style=footer_style)
     return footer
 
 
