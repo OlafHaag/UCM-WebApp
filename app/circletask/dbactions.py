@@ -204,14 +204,36 @@ def add_to_db(device_kwargs, user_kwargs, blocks_kwargs, trials_kwargs):
     try:
         device = get_one_or_create(Device, create_func=new_device, **device_kwargs).instance
     except ModelCreationError:
-        raise
+        # There seems to be a conflict between incoming and existing device data.
+        # Though it's the same device the resolution may change, when the OS topbar and navbar are hidden,
+        # or window size changes. Maybe it's just a floating point precision issue.
+        # Haven't figured out yet when the app switches to immersive mode.
+        # This, of course, bears the risk of changing device statistics when not handled.
+        # ToDo: Handle change in device properties. Ideally register as new device, if necessary. 
+        #       Or change floating point precision.
+        try:
+            device = db.session.query(Device).get(device_kwargs['id'])
+        except NoResultFound:
+            raise ModelCreationError("ERROR: Could neither retrieve, nor create device.")
+        # Update age & gender.
+        try:
+            device.screen_x = device_kwargs['screen_x']
+            device.screen_y = device_kwargs['screen_y']
+            device.dpi = device_kwargs['dpi']
+            device.density = device_kwargs['density']
+            device.aspect_ratio = device_kwargs['aspect_ratio']
+            device.size_x = device_kwargs['size_x']
+            device.size_y = device_kwargs['size_y']
+            device.platform = device_kwargs['platform']
+        except KeyError:
+            raise ModelCreationError("ERROR: Missing device data.")
     
     try:
         user, is_new_user = get_one_or_create(User, create_func=new_user, **user_kwargs)
     except ModelCreationError:
         # There seems to be a conflict between incoming and existing user data.
         # A user could change their age and gender, so we update it.
-        # This, of course. bears the risk of changing demographic statistics for other studies,
+        # This, of course, bears the risk of changing demographic statistics for other studies,
         # but for now we roll with it.
         # ToDo: Maybe a combined primary key of id, age, gender is the solution for changing user demographic.
         try:
