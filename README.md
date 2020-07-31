@@ -16,7 +16,7 @@ Analyze and visualize data produced by the [NeuroPsy Research App](https://githu
  
 ### PostgreSQL
 This app uses a PostgreSQL Database on Heroku.  
-Heroku's free PostgreSQL Add-on has a row limit of 10,000.
+Heroku's free PostgreSQL Add-on has a row limit of 10,000 (translates to roughly 133 participants).
 * Install PostgreSQL (can skip Stack Builder)
 * Open pgAdmin4
     * Create new user with password
@@ -48,6 +48,10 @@ After having set up the virtual environment with Pipenv, the database can be man
 * connect repository 
 
 ### Postgres Add-on
-* You can either use heroku's web-interface, or herokucli.
+* You can either use heroku's web-interface, or heroku cli.
 * `flask db upgrade` to create the tables in the database
 
+## Local Test
+* Activate virtual environment.
+* Linux: `heroku local web`
+* Windows: `heroku local web -f Procfile.windows`
