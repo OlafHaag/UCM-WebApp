@@ -3,6 +3,7 @@ This module contains all the dash components visible to the user and composes th
 """
 
 from datetime import datetime
+import logging
 from pathlib import Path
 
 import dash_core_components as dcc
@@ -217,7 +218,7 @@ def get_columns_settings(dataframe, order=None):
         try:
             cols = [dataframe.columns[i] for i in order]
         except IndexError:
-            print("WARNING: Order of columns out of range.")
+            logging.log(logging.WARNING, "Order of columns out of range.")
             cols = dataframe.columns
     for c in cols:
         # Nicer column names. Exclude df1 and df2 from renaming.

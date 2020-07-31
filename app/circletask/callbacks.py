@@ -8,8 +8,9 @@ import base64
 from datetime import datetime
 from collections import namedtuple
 from hashlib import md5
-# Third-party module imports.
+import logging
 
+# Third-party module imports.
 import dash
 import dash_html_components as html
 from dash.dependencies import Input, Output, State
@@ -504,7 +505,7 @@ def register_callbacks(dashapp):
         try:
             outliers, z = analysis.get_outlyingness(df[['df1', 'df2']].values, contamination=contamination)
         except (KeyError, ValueError):
-            print("ERROR: Could not compute outliers. Missing columns in DataFrame.")
+            logging.log(logging.ERROR, "Could not compute outliers. Missing columns in DataFrame.")
             # Create data with no outliers.
             outliers = np.array(False).repeat(df.shape[0])
             z = np.ones((101, 101)).astype(int)
@@ -549,9 +550,8 @@ def register_callbacks(dashapp):
                        Input('pca-checkbox', 'value'),
                        Input('ellipses-checkbox', 'value')],
                       [State('trials-table', 'derived_virtual_data'),
-                       State('datastore', 'data'),
                        State('contour-store', 'data')])
-    def set_trials_plot(pca_data, show_pca, show_ellipses, table_data, stored_data, contour):
+    def set_trials_plot(pca_data, show_pca, show_ellipses, table_data, contour):
         """ Update the graph for displaying trial data as scatter plot. """
         df = records_to_df(table_data)
         try:
