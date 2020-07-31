@@ -14,17 +14,17 @@ else:
     dotenv_path = Path(__file__).parent / '.env'
     load_dotenv(dotenv_path)
     
-app = create_app()
+application = create_app()
 
 if __name__ == "__main__":
     # Set Flask application logger’s handlers to the same as gunicorn’s.
     gunicorn_logger = logging.getLogger('gunicorn.error')
-    app.logger.handlers = gunicorn_logger.handlers
+    application.logger.handlers = gunicorn_logger.handlers
     # Respect gunicorn's --log-level cmd arg.
-    app.logger.setLevel(gunicorn_logger.level)
+    application.logger.setLevel(gunicorn_logger.level)
     # Silence server routes.
     #logging.getLogger('werkzeug').setLevel(logging.ERROR)
     
     # Run the app.
     port = int(os.environ.get("PORT", 5000))
-    app.run(debug=debug, port=port, threaded=True)
+    application.run(debug=debug, port=port, threaded=True)
