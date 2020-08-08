@@ -171,8 +171,8 @@ def get_device_properties(csv_file):
     :rtype: dict
     """
     try:
-        # For device and user we expect them to contain only 1 entry.
-        props = pd.read_csv(csv_file).iloc[0].to_dict()  # df->Series->dict
+        # For device and user we expect them to contain only 1 entry. Prevent id from being converted to number.
+        props = pd.read_csv(csv_file, dtype={'id': object}).iloc[0].to_dict()  # df->Series->dict
     except Exception:
         raise UploadError("ERROR: Failed to read file contents for device.")
     return props
@@ -187,8 +187,8 @@ def get_user_properties(csv_file):
     :rtype: dict
     """
     try:
-        # We expect the user data to contain only 1 entry.
-        df = pd.read_csv(csv_file)
+        # We expect the user data to contain only 1 entry. Prevent IDs from being converted to numbers.
+        df = pd.read_csv(csv_filedtype={'id': object, 'device_id': object})
         # We need to convert NaN to None for SQL to work.
         df = df.where(pd.notnull(df), None)
         props = df.iloc[0].to_dict()  # df->Series->dict
