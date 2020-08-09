@@ -188,7 +188,7 @@ def get_user_properties(csv_file):
     """
     try:
         # We expect the user data to contain only 1 entry. Prevent IDs from being converted to numbers.
-        df = pd.read_csv(csv_filedtype={'id': object, 'device_id': object})
+        df = pd.read_csv(csv_file, dtype={'id': object, 'device_id': object})
         # We need to convert NaN to None for SQL to work.
         df = df.where(pd.notnull(df), None)
         props = df.iloc[0].to_dict()  # df->Series->dict
