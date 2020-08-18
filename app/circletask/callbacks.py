@@ -474,20 +474,22 @@ def register_callbacks(dashapp):
             try:
                 # Query db on initial call when upload_msg is None or on successful upload.
                 if upload_msg is None or "Upload successful." in upload_msg[0].children:
-                    df = analysis.join_data(*dbactions.get_data(start_date, end_date))
+                    users, blocks, trials = dbactions.get_data(start_date, end_date)
+                    df, n_errors, n_invalid_sessions, n_trials_removed = analysis.preprocess_data(users, blocks, trials)
                 else:
                     return (dash.no_update,) * 3
             except (TypeError, AttributeError, IndexError):
                 return (dash.no_update,) * 3
         else:
-            df = analysis.join_data(*dbactions.get_data(start_date, end_date))
-        # Remove invalid trials.
-        df_adjusted = analysis.get_valid_trials(df)
-        n_removed = len(df) - len(df_adjusted)
-        removal_msg = f"{n_removed} trials have been excluded from the selected time period due to incorrect execution."\
-                      + bool(n_removed) * " Sliders were either not used concurrently or not used at all."
+            users, blocks, trials = dbactions.get_data(start_date, end_date)
+            df, n_errors, n_invalid_sessions, n_trials_removed = analysis.preprocess_data(users, blocks, trials)
+        removal_msg = f"{n_errors} blocks with erroneous data were found. As a consequence {n_invalid_sessions} " \
+                      f"sessions were excluded. " \
+                      f"{n_trials_removed} trials have been excluded from the selected time period due to incorrect" \
+                      f" execution." + " Sliders were either not used concurrently or not used at all." \
+                      * bool(n_trials_removed)
         users = [{'label': p, 'value': p} for p in df['user'].unique()]
-        return df_to_records(df_adjusted), users, removal_msg
+        return df_to_records(df), users, removal_msg
     
     # Trials
     @dashapp.callback([Output('trials-table', 'data'),

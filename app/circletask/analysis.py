@@ -8,6 +8,53 @@ from sklearn.decomposition import PCA
 from sklearn.covariance import EllipticEnvelope
 
 
+def preprocess_data(users, blocks, trials):
+    """ Clean data.
+    
+    :param users: Data from users table
+    :type users: pandas.DataFrame
+    :param blocks: Data from circletask_blocks table.
+    :type blocks: pandas.DataFrame
+    :param trials: Data from circletask_trials table.
+    :type trials: pandas.DataFrame
+    :returns: Joined and recoded DataFrame. Number of erroneous blocks. Number of sessions removed as a consequence.
+              Number of removed trials.
+    :rtype: tuple[pandas.DataFrame, int, int, int]
+    """
+    blocks, n_errors, invalid_sessions = remove_erroneous_blocks(blocks)
+    # Merge to 1 table.
+    df = join_data(users, blocks, trials)
+    # Remove invalid trials.
+    cleaned, n_trials_removed = get_valid_trials(df)
+    return cleaned, n_errors, len(invalid_sessions), n_trials_removed
+
+
+def remove_erroneous_blocks(blocks):
+    """ Remove sessions with erroneous data due to a NeuroPsy Research App malfunction.
+    The error causes block data to be duplicated and the values for df1 & df2 multiplied again by 100.
+    The duplicated blocks are identified by comparing their time stamps to the previous block (less than 2 seconds
+    difference). If the error caused the session to end early, the whole session is removed.
+    
+    NeuroPsyResearchApp issue #1.
+    
+    :param pandas.DataFrame blocks: Data about blocks.
+    :returns: Cleaned block data. Number of errors found. List of sessions that were removed as a consequence.
+    :rtype: tuple[pandas.DataFrame, int, list]
+    """
+    # Identify duplicated blocks. Consecutive time stamps are usually less than 2 seconds apart.
+    mask = blocks.groupby(['session_uid'])['time'].diff() < 2.0
+    try:
+        n_errors = mask.value_counts()[True]
+    except KeyError:
+        n_errors = 0
+    blocks = blocks.loc[~mask, :]
+    # Now, after removal of erroneous data a session might not have all 3 blocks we expect. Exclude whole session.
+    invalid_sessions = blocks['session_uid'].value_counts() != 3
+    invalid_sessions = invalid_sessions.loc[invalid_sessions].index.to_list()
+    blocks = blocks.loc[~blocks['session_uid'].isin(invalid_sessions), :]
+    return blocks, n_errors, invalid_sessions
+
+
 def join_data(users, blocks, trials):
     """ Take data from different database tables and join them to a single DataFrame. Some variables are renamed and
     recoded in the process, some are dropped.
@@ -23,7 +70,9 @@ def join_data(users, blocks, trials):
     """
     # Use users' index instead of id for obfuscation and shorter display.
     users_inv_map = pd.Series(users.index, index=users.id)
-    # Now insert some data from other tables.
+    # Remove trials that don't belong to any block. Those have been excluded.
+    trials = trials.loc[trials['block_id'].isin(blocks.index), :]
+    # Start a new table for trials and augment with data from other tables.
     df = pd.DataFrame(index=trials.index)
     df['user'] = trials.user_id.map(users_inv_map).astype('category')
     df['session'] = trials['block_id'].map(blocks['nth_session']).astype('category')
@@ -38,7 +87,6 @@ def join_data(users, blocks, trials):
                                         ).astype('category')
     #df['task'] = trials['block_id'].map(blocks['treatment'].replace(to_replace={r'\w+': 1, r'^\s*$': 0}, regex=True)
     #                                   ).astype('category')
-    df['constraint'] = trials['block_id'].map(blocks['treatment']).astype('category')  # Obsolete.
     
     df = pd.concat((df, trials), axis='columns')
     # Add columns for easier filtering.
@@ -54,15 +102,16 @@ def get_valid_trials(dataframe):
     
     :param dataframe: Trial data.
     :type dataframe: pandas.DataFrame
-    :return: Filtered trials.
-    :rtype: pandas.DataFrame
+    :returns: Filtered trials. Number of removed trials.
+    :rtype: tuple[pandas.DataFrame, int]
     """
     # Remove trials with missing values. This means at least one slider wasn't grabbed.
     df = dataframe.dropna(axis='index', how='any')
     # Remove trials where sliders where not grabbed concurrently.
     mask = ~((df['df1_release'] <= df['df2_grab']) | (df['df2_release'] <= df['df1_grab']))
-    df = df[mask]
-    return df
+    df = df.loc[mask, :]
+    n_removed = len(dataframe) - len(df)
+    return df, n_removed
     
     
 def get_outlyingness(data, contamination=0.1):
@@ -87,6 +136,8 @@ def get_outlyingness(data, contamination=0.1):
     z = z.reshape(xx.shape)
     
     return decision, z
+    #ToDo: remove blocks/sessions with sum mean way off.
+    #ToDo: remove sessions with less than 10 trials in any block.
 
 
 def get_pca_data(dataframe):
